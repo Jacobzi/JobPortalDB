@@ -37,6 +37,9 @@ public class RecruiterService {
     }
 
     public Recruiter createRecruiter(Recruiter recruiter) {
+
+        recruiter.setId(null);
+
         return recruiterRepository.save(recruiter);
     }
 

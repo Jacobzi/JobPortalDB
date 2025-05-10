@@ -19,7 +19,7 @@ import java.util.List;
 @Schema(description = "Job information")
 public class Job {
     @Id
-    @Schema(description = "Unique job identifier")
+    @Schema(description = "Unique job identifier", accessMode = Schema.AccessMode.READ_ONLY)
     private String id;
 
     @NotBlank(message = "Title is required")

@@ -1,5 +1,6 @@
 package org.example.oopproject1.model;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -17,6 +18,7 @@ import java.time.LocalDate;
 @Document(collection = "applications")
 public class Application {
     @Id
+    @Schema(accessMode = Schema.AccessMode.READ_ONLY, description = "Unique identifier generated automatically")
     private String id;
 
     @NotBlank(message = "Job ID is required")

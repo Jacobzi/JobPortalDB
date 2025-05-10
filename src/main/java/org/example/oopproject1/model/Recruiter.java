@@ -1,5 +1,6 @@
 package org.example.oopproject1.model;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -15,6 +16,7 @@ import jakarta.validation.constraints.NotBlank;
 @Document(collection = "recruiters")
 public class Recruiter {
     @Id
+    @Schema(accessMode = Schema.AccessMode.READ_ONLY, description = "Unique recruiter identifier" )
     private String id;
 
     @NotBlank(message = "Name is required")

@@ -52,6 +52,8 @@ public class JobService {
         // Set recruiter ID
         job.setRecruiterId(recruiter.getId());
 
+        job.setId(null);
+
         // Continue with existing job creation logic
         job.setPostDate(LocalDate.now());
         if (job.getDeadlineDate() == null) {
@@ -63,6 +65,9 @@ public class JobService {
 
     // Original method for admin use
     public Job createJob(Job job) {
+
+        job.setId(null);
+
         job.setPostDate(LocalDate.now());
         if (job.getDeadlineDate() == null) {
             job.setDeadlineDate(LocalDate.now().plusMonths(1));

@@ -59,6 +59,7 @@ public class UserService implements UserDetailsService {
         }
 
         User user = new User();
+        user.setId(null);
         user.setUsername(username);
         user.setEmail(email);
         user.setPassword(passwordEncoder.encode(password));

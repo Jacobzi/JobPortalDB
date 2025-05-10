@@ -11,6 +11,7 @@ import io.swagger.v3.oas.models.servers.Server;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import java.util.Collections;
 import java.util.List;
 
 @Configuration
@@ -18,10 +19,10 @@ public class OpenAPIConfig {
 
     @Bean
     public OpenAPI myOpenAPI() {
-        // Server information
-        Server devServer = new Server();
-        devServer.setUrl("https://jobportaldb-api.onrender.com");
-        devServer.setDescription("Server URL in Development environment");
+        // Local server only
+        Server localServer = new Server();
+        localServer.setUrl("https://jobportaldb-api.onrender.com");
+        localServer.setDescription("Local Development Server");
 
         // Contact information
         Contact contact = new Contact();
@@ -54,7 +55,7 @@ public class OpenAPIConfig {
 
         return new OpenAPI()
                 .info(info)
-                .servers(List.of(devServer))
+                .servers(Collections.singletonList(localServer))  // Only use local server
                 .components(components)
                 .addSecurityItem(new SecurityRequirement().addList("bearer-jwt"));
     }

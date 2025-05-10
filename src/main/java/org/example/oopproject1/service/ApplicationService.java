@@ -33,6 +33,9 @@ public class ApplicationService {
     }
 
     public Application createApplication(Application application) {
+        // Ensure ID is null to force MongoDB to generate a new one
+        application.setId(null);
+
         application.setApplicationDate(LocalDate.now());
         if (application.getStatus() == null) {
             application.setStatus(Application.ApplicationStatus.SUBMITTED);

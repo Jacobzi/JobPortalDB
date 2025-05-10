@@ -1,5 +1,6 @@
 package org.example.oopproject1.model;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -20,6 +21,7 @@ import java.util.stream.Collectors;
 public class User implements UserDetails {
 
     @Id
+    @Schema(accessMode = Schema.AccessMode.READ_ONLY, description = "Unique user identifier")
     private String id;
     private String username;
     private String password;
