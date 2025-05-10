@@ -2,7 +2,9 @@ package org.example.oopproject1.controller;
 
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.example.oopproject1.model.Recruiter;
+import org.example.oopproject1.model.User;
 import org.example.oopproject1.service.RecruiterService;
+import org.example.oopproject1.service.UserService;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
@@ -21,6 +23,9 @@ public class RecruiterController {
 
     @Autowired
     private RecruiterService recruiterService;
+
+    @Autowired
+    private UserService userService;
 
     @GetMapping
     public ResponseEntity<List<Recruiter>> getAllRecruiters() {
@@ -49,7 +54,26 @@ public class RecruiterController {
 
     @PostMapping
     public ResponseEntity<Recruiter> createRecruiter(@Valid @RequestBody Recruiter recruiter) {
-        return new ResponseEntity<>(recruiterService.createRecruiter(recruiter), HttpStatus.CREATED);
+        // Force MongoDB to auto-generate ID
+        recruiter.setId(null);
+
+        // Create a user with RECRUITER role
+        try {
+            userService.registerUser(
+                    recruiter.getName(), // Use name as username
+                    recruiter.getEmail(),
+                    "recruiter123", // Default password
+                    "RECRUITER"
+            );
+        } catch (Exception e) {
+            // If user already exists, continue anyway
+            System.out.println("Note: User may already exist: " + e.getMessage());
+        }
+
+        // Then create the recruiter
+        Recruiter createdRecruiter = recruiterService.createRecruiter(recruiter);
+
+        return new ResponseEntity<>(createdRecruiter, HttpStatus.CREATED);
     }
 
     @PutMapping("/{id}")
