@@ -1,6 +1,7 @@
 package org.example.oopproject1.cli;
 
 import org.example.oopproject1.model.Application;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.example.oopproject1.model.Job;
 import org.example.oopproject1.model.Recruiter;
 import org.example.oopproject1.model.User;
@@ -28,6 +29,7 @@ import java.util.Scanner;
 
 @Component
 @Profile("console")
+@ConditionalOnProperty(name = "org.example.oopproject1.cli.enabled", havingValue = "true", matchIfMissing = true)
 public class ConsoleMenuRunner implements CommandLineRunner {
 
     private final JobService jobService;
