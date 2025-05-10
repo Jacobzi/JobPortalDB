@@ -20,7 +20,6 @@ public class UserDataInitializer implements CommandLineRunner {
 
     @Override
     public void run(String... args) throws Exception {
-        // Check if admin user exists
         if (!userRepository.existsByUsername("admin")) {
             User admin = new User();
             admin.setUsername("admin");
@@ -31,19 +30,6 @@ public class UserDataInitializer implements CommandLineRunner {
 
             userRepository.save(admin);
             System.out.println("Admin user created");
-        }
-
-        // Add a regular user too
-        if (!userRepository.existsByUsername("user")) {
-            User user = new User();
-            user.setUsername("user");
-            user.setEmail("user@example.com");
-            user.setPassword(passwordEncoder.encode("user123"));
-            user.setRoles(Arrays.asList("USER"));
-            user.setEnabled(true);
-
-            userRepository.save(user);
-            System.out.println("Regular user created");
         }
     }
 }

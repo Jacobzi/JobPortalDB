@@ -4,6 +4,7 @@ package org.example.oopproject1.util;
 import org.example.oopproject1.model.Job;
 import org.example.oopproject1.model.Recruiter;
 import org.example.oopproject1.repository.JobRepository;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.example.oopproject1.repository.RecruiterRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.CommandLineRunner;
@@ -14,6 +15,7 @@ import java.util.Arrays;
 import java.util.List;
 
 @Component
+@ConditionalOnProperty(name = "app.load-sample-data", havingValue = "true", matchIfMissing = false)
 public class DataLoader implements CommandLineRunner {
 
     @Autowired
