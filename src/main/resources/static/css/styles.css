@@ -1,0 +1,261 @@
+/* src/main/resources/static/css/styles.css */
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.navbar {
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.footer {
+    margin-top: auto;
+    padding: 20px 0;
+    background-color: #f8f9fa;
+    border-top: 1px solid #e9ecef;
+}
+
+.card {
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    border-radius: 8px;
+    border: 1px solid rgba(0, 0, 0, 0.125);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+}
+
+.job-card {
+    margin-bottom: 20px;
+}
+
+.job-card .card-title {
+    color: #0d6efd;
+}
+
+.badge {
+    font-weight: 500;
+}
+
+.form-container {
+    max-width: 500px;
+    margin: 0 auto;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+    background-color: #fff;
+}
+
+.auth-page {
+    background-color: #f8f9fa;
+    padding: 40px 0;
+}
+
+.error-message {
+    color: #dc3545;
+    margin-top: 10px;
+}
+
+.success-message {
+    color: #198754;
+    margin-top: 10px;
+}
+
+.page-header {
+    margin-bottom: 30px;
+    border-bottom: 1px solid #e9ecef;
+    padding-bottom: 15px;
+}
+
+.search-container {
+    margin-bottom: 30px;
+}
+
+/* Job details page */
+.job-header {
+    border-bottom: 1px solid #e9ecef;
+    padding-bottom: 20px;
+    margin-bottom: 20px;
+}
+
+.job-company {
+    color: #6c757d;
+    font-size: 1.25rem;
+}
+
+.job-details-section {
+    margin-bottom: 25px;
+}
+
+.skills-container .badge {
+    margin-right: 5px;
+    margin-bottom: 5px;
+    background-color: #e9ecef;
+    color: #212529;
+    font-weight: normal;
+    padding: 0.5em 0.8em;
+}
+
+.application-form {
+    background-color: #f8f9fa;
+    padding: 20px;
+    border-radius: 8px;
+    margin-top: 20px;
+}
+
+/* Loading spinner */
+.loading-spinner {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 200px;
+}
+
+/* Hide elements that should only be visible to certain roles */
+.admin-only, .recruiter-only, .user-only {
+    display: none;
+}
+
+/* Avatar styles for profile page */
+.avatar-circle {
+    width: 100px;
+    height: 100px;
+    background-color: #0d6efd;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.avatar-text {
+    color: white;
+    font-size: 42px;
+    font-weight: bold;
+}
+
+/* Status badges for applications */
+.badge.bg-info {
+    background-color: #0dcaf0 !important;
+}
+
+.badge.bg-warning {
+    background-color: #ffc107 !important;
+}
+
+.badge.bg-primary {
+    background-color: #0d6efd !important;
+}
+
+.badge.bg-success {
+    background-color: #198754 !important;
+}
+
+.badge.bg-danger {
+    background-color: #dc3545 !important;
+}
+
+/* Improvements for jobs cards */
+.job-card .card-title {
+    font-size: 1.2rem;
+    font-weight: 600;
+}
+
+.job-card .card-subtitle {
+    font-size: 1rem;
+}
+
+/* Improved forms */
+.form-label {
+    font-weight: 500;
+}
+
+/* Application status timeline */
+.application-timeline {
+    position: relative;
+    padding-left: 30px;
+}
+
+.application-timeline::before {
+    content: '';
+    position: absolute;
+    left: 10px;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background-color: #e9ecef;
+}
+
+.timeline-item {
+    position: relative;
+    padding-bottom: 20px;
+}
+
+.timeline-item::before {
+    content: '';
+    position: absolute;
+    left: -30px;
+    top: 0;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background-color: #e9ecef;
+    border: 3px solid #fff;
+}
+
+.timeline-item.active::before {
+    background-color: #0d6efd;
+}
+
+/* Admin dashboard improvements */
+.stat-card {
+    text-align: center;
+    padding: 20px;
+    border-radius: 8px;
+    color: white;
+    transition: transform 0.3s ease;
+}
+
+.stat-card:hover {
+    transform: translateY(-5px);
+}
+
+.stat-card .stat-number {
+    font-size: 2.5rem;
+    font-weight: bold;
+}
+
+.stat-card .stat-label {
+    font-size: 1rem;
+    opacity: 0.9;
+}
+
+/* Better tables for admin views */
+.table-action-buttons .btn {
+    margin-right: 5px;
+}
+
+.table-action-buttons .btn:last-child {
+    margin-right: 0;
+}
+
+/* Make the footer stay at the bottom */
+html, body {
+    height: 100%;
+}
+
+body {
+    display: flex;
+    flex-direction: column;
+}
+
+.container {
+    flex: 1 0 auto;
+}
+
+.footer {
+    flex-shrink: 0;
+}

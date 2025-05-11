@@ -151,8 +151,84 @@ public class ConsoleMenuRunner implements CommandLineRunner {
         System.out.println("Username: " + currentUser.getUsername());
         System.out.println("Email: " + currentUser.getEmail());
 
-        System.out.println("\nProfile updates are not available in the CLI interface.");
-        System.out.println("To update your profile, please use the web interface or contact an administrator.");
+        // Check if the user is a recruiter
+        boolean isRecruiter = hasRole(currentUser, "RECRUITER");
+        Recruiter recruiterProfile = null;
+
+        if (isRecruiter) {
+            try {
+                recruiterProfile = recruiterService.getRecruiterByEmail(currentUser.getEmail());
+                if (recruiterProfile != null) {
+                    System.out.println("Company: " + recruiterProfile.getCompany());
+                    System.out.println("Position: " + recruiterProfile.getPosition());
+                    System.out.println("Phone: " + recruiterProfile.getPhone());
+                }
+            } catch (Exception e) {
+                System.out.println("Error retrieving recruiter profile: " + e.getMessage());
+            }
+        }
+
+        System.out.println("\nUpdate Profile Information:");
+        System.out.println("(Leave field blank to keep current value)");
+
+        // Update user information
+        System.out.print("New Email: ");
+        String newEmail = scanner.nextLine().trim();
+
+        System.out.print("New Password (Enter to skip): ");
+        String newPassword = scanner.nextLine().trim();
+
+        // Update user entity
+        if (!newEmail.isEmpty() || !newPassword.isEmpty()) {
+            try {
+                userService.updateUserWithPassword(currentUser.getId(),
+                        newEmail.isEmpty() ? null : newEmail,
+                        newPassword.isEmpty() ? null : newPassword);
+
+                if (!newEmail.isEmpty()) {
+                    currentUser.setEmail(newEmail);
+                }
+
+                System.out.println("User profile updated successfully!");
+            } catch (Exception e) {
+                System.out.println("Error updating user profile: " + e.getMessage());
+            }
+        }
+
+        // If user is a recruiter, update recruiter profile as well
+        if (isRecruiter && recruiterProfile != null) {
+            System.out.println("\nUpdate Recruiter Information:");
+
+            System.out.print("New Company: ");
+            String company = scanner.nextLine().trim();
+            if (!company.isEmpty()) {
+                recruiterProfile.setCompany(company);
+            }
+
+            System.out.print("New Position: ");
+            String position = scanner.nextLine().trim();
+            if (!position.isEmpty()) {
+                recruiterProfile.setPosition(position);
+            }
+
+            System.out.print("New Phone: ");
+            String phone = scanner.nextLine().trim();
+            if (!phone.isEmpty()) {
+                recruiterProfile.setPhone(phone);
+            }
+
+            // Update email in recruiter profile if it was changed
+            if (!newEmail.isEmpty()) {
+                recruiterProfile.setEmail(newEmail);
+            }
+
+            try {
+                recruiterService.updateRecruiter(recruiterProfile.getId(), recruiterProfile);
+                System.out.println("Recruiter profile updated successfully!");
+            } catch (Exception e) {
+                System.out.println("Error updating recruiter profile: " + e.getMessage());
+            }
+        }
 
         System.out.println("\nPress Enter to continue...");
         scanner.nextLine();

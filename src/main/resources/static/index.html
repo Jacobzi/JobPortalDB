@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Job Portal</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="css/styles.css">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+<!-- Navigation Bar -->
+<nav class="navbar navbar-expand-lg navbar-dark bg-primary sticky-top">
+    <div class="container">
+        <a class="navbar-brand" href="/">Job Portal</a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav me-auto">
+                <li class="nav-item">
+                    <a class="nav-link" href="/">Home</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/jobs.html">Jobs</a>
+                </li>
+                <!-- Authenticated menu items will be shown/hidden by JavaScript -->
+                <li class="nav-item authenticated recruiter-only" style="display: none;">
+                    <a class="nav-link" href="/my-jobs.html">My Jobs</a>
+                </li>
+                <li class="nav-item authenticated admin-only" style="display: none;">
+                    <a class="nav-link" href="/admin.html">Admin</a>
+                </li>
+            </ul>
+            <ul class="navbar-nav ms-auto">
+                <li class="nav-item unauthenticated">
+                    <a class="nav-link" href="/login.html">Login</a>
+                </li>
+                <li class="nav-item unauthenticated">
+                    <a class="nav-link" href="/register.html">Register</a>
+                </li>
+                <li class="nav-item dropdown authenticated" style="display: none;">
+                    <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown">
+                        <span id="username">User</span>
+                    </a>
+                    <ul class="dropdown-menu dropdown-menu-end">
+                        <li><a class="dropdown-item" href="/profile.html">Profile</a></li>
+                        <li><a class="dropdown-item authenticated user-only" href="/applications.html">My Applications</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="#" id="logout">Logout</a></li>
+                    </ul>
+                </li>
+            </ul>
+        </div>
+    </div>
+</nav>
+
+<!-- Main Content -->
+<div class="container py-5">
+    <div class="text-center mb-5">
+        <h1 class="display-4">Find Your Perfect Job</h1>
+        <p class="lead text-muted">Browse thousands of job listings and find opportunities that match your skills and career goals.</p>
+        <div class="mt-4">
+            <a href="/jobs.html" class="btn btn-primary btn-lg px-4 me-md-2">Browse Jobs</a>
+            <a href="/register.html" class="btn btn-outline-secondary btn-lg px-4 unauthenticated">Join Now</a>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-md-4">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h5 class="card-title">For Job Seekers</h5>
+                    <p class="card-text">Create a profile, browse job listings, apply to positions, and track your applications all in one place.</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h5 class="card-title">For Recruiters</h5>
+                    <p class="card-text">Post job listings, manage applications, and find the perfect candidates for your organization.</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h5 class="card-title">Easy Application Process</h5>
+                    <p class="card-text">Apply to jobs with just a few clicks. Upload your resume once and use it for multiple applications.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Footer -->
+<footer class="footer bg-light mt-5 py-3">
+    <div class="container text-center">
+        <span class="text-muted">© 2025 Job Portal. All rights reserved.</span>
+    </div>
+</footer>
+
+<!-- Bootstrap Bundle with Popper -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<!-- Auth Service -->
+<script src="js/auth.js"></script>
+<!-- Main JS -->
+<script src="js/main.js"></script>
+</body>
+</html>
