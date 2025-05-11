@@ -22,4 +22,9 @@ public class SignupRequest {
     private String password;
 
     private String role;
+
+    // Add these fields for recruiter registration
+    private String company;
+    private String phone;
+    private String position;
 }

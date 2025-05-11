@@ -321,6 +321,11 @@ function initRegisterPage() {
             const confirmPassword = document.getElementById('confirm-password').value;
             const recruiterCheckbox = document.getElementById('is-recruiter');
 
+            // Get recruiter fields
+            const company = document.getElementById('company')?.value || '';
+            const phone = document.getElementById('phone')?.value || '';
+            const position = ''; // You can add a position field in the form if needed
+
             try {
                 if (errorContainer) {
                     errorContainer.innerHTML = '';
@@ -334,13 +339,30 @@ function initRegisterPage() {
                 // Determine role
                 const role = recruiterCheckbox && recruiterCheckbox.checked ? 'RECRUITER' : 'USER';
 
-                // Register user
-                await AuthService.register({
+                // Create request data
+                const userData = {
                     username,
                     email,
                     password,
                     role
-                });
+                };
+
+                // Add recruiter fields if registering as recruiter
+                if (role === 'RECRUITER') {
+                    userData.company = company;
+                    userData.phone = phone;
+                    userData.position = position;
+
+                    // Validate company field
+                    if (!company) {
+                        throw new Error('Company name is required for recruiter registration.');
+                    }
+                }
+
+                console.log("Registering user with data:", userData);
+
+                // Register user
+                await AuthService.register(userData);
 
                 // Redirect to login with success message
                 window.location.href = `/login.html?message=${encodeURIComponent('Registration successful! Please log in.')}`;

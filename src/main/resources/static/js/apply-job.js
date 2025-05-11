@@ -10,7 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Check if user is a recruiter (recruiters can't apply to jobs)
-    if (auth.isRecruiter()) {
+    if (auth.hasRole('RECRUITER')) {
         window.location.href = '/jobs.html';
         return;
     }
@@ -126,15 +126,18 @@ function initApplicationForm(jobId) {
         submitButton.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Submitting...';
 
         try {
+            console.log("Submitting application:", application);
+
             // Submit application
-            await ApiClient.post('/applications', application);
+            const response = await ApiClient.post('/applications', application);
+            console.log("Application submitted successfully:", response);
 
             // Show success message and redirect to applications page
             alert('Your application has been submitted successfully!');
             window.location.href = '/applications.html';
         } catch (error) {
-            alert(`Failed to submit application: ${error.message || 'Unknown error'}`);
             console.error('Application submission error:', error);
+            alert(`Failed to submit application: ${error.message || 'Unknown error'}`);
 
             // Re-enable submit button
             submitButton.disabled = false;

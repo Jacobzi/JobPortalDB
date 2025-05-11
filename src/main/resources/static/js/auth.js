@@ -95,8 +95,11 @@ const AuthService = {
     },
 
     // Register user
+    // Register user
     register: async (userData) => {
         try {
+            console.log("Sending registration data:", userData);
+
             const response = await fetch(`${API_URL}/auth/register`, {
                 method: 'POST',
                 headers: {
@@ -208,11 +211,15 @@ const ApiClient = {
             headers
         };
 
+        console.log(`API Request: ${API_URL}${url}`, config);
+
         try {
             const response = await fetch(`${API_URL}${url}`, config);
+            console.log(`API Response status: ${response.status} for ${url}`);
 
             // Handle unauthorized error
             if (response.status === 401) {
+                console.error('Unauthorized access - logging out');
                 AuthService.logout();
                 window.location.href = '/login.html';
                 return;
@@ -221,13 +228,15 @@ const ApiClient = {
             // Handle other errors
             if (!response.ok) {
                 const errorData = await response.json();
+                console.error(`API error (${response.status}):`, errorData);
                 throw new Error(errorData.message || 'Request failed');
             }
 
             // Return parsed response
-            return await response.json();
+            const data = await response.json();
+            return data;
         } catch (error) {
-            console.error('API error:', error);
+            console.error(`API error for ${url}:`, error);
             throw error;
         }
     },

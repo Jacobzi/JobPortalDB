@@ -3,7 +3,7 @@
 document.addEventListener('DOMContentLoaded', () => {
     // Check if user is recruiter, if not redirect to home
     const auth = AuthService.initAuth();
-    if (!auth.isRecruiter() && !auth.isAdmin()) {
+    if (!auth.isAuthenticated() || (!auth.hasRole('RECRUITER') && !auth.hasRole('ADMIN'))) {
         window.location.href = '/';
         return;
     }
@@ -45,31 +45,68 @@ async function loadMyJobs() {
             </div>
         `;
 
-        // Get current recruiter info
+        // Get current user info
         const user = AuthService.getUser();
+        console.log("Current user:", user);
 
-        // Load recruiter by email
-        let recruiterId;
+        // Try to get recruiter info by email
+        let recruiterId = null;
         try {
-            // Try to get recruiter info by email
-            const recruiterResponse = await ApiClient.get(`/recruiters/search?email=${user.email}`);
-            if (recruiterResponse && recruiterResponse.length > 0) {
-                recruiterId = recruiterResponse[0].id;
+            // Use the new endpoint we're creating
+            const response = await ApiClient.get(`/recruiters/byEmail?email=${encodeURIComponent(user.email)}`);
+
+            if (response && response.id) {
+                recruiterId = response.id;
+                console.log("Found recruiter ID:", recruiterId);
+            } else {
+                console.warn("No recruiter found with email:", user.email);
             }
         } catch (err) {
-            console.warn('Could not find recruiter profile, will show all jobs');
+            console.error("Error finding recruiter:", err);
+
+            // Fallback to listing all recruiters and finding by email
+            try {
+                const recruiters = await ApiClient.get(`/recruiters`);
+                console.log("Retrieved recruiters:", recruiters);
+
+                // Find the recruiter that matches the user's email
+                const recruiterArray = recruiters.content || recruiters || [];
+                const recruiter = recruiterArray.find(r => r.email === user.email);
+
+                if (recruiter) {
+                    recruiterId = recruiter.id;
+                    console.log("Found recruiter ID from list:", recruiterId);
+                }
+            } catch (listErr) {
+                console.error("Error listing recruiters:", listErr);
+            }
         }
 
         // Load jobs either by recruiter ID or all jobs for admin
         let jobs = [];
+        const isAdmin = user.roles.includes('ADMIN');
+
         if (recruiterId) {
+            console.log("Loading jobs for recruiter:", recruiterId);
             const response = await ApiClient.get(`/jobs/recruiter/${recruiterId}`);
             jobs = response.content || response || [];
-        } else {
+        } else if (isAdmin) {
             // Admin can see all jobs
+            console.log("Loading all jobs for admin");
             const response = await ApiClient.get('/jobs');
             jobs = response.content || response || [];
+        } else {
+            console.warn("No recruiter ID found and user is not admin.");
+            container.innerHTML = `
+                <div class="alert alert-warning">
+                    <h4 class="alert-heading">Recruiter Profile Not Found</h4>
+                    <p>We couldn't find your recruiter profile. Please contact an administrator.</p>
+                </div>
+            `;
+            return;
         }
+
+        console.log("Retrieved jobs:", jobs);
 
         if (jobs.length === 0) {
             container.innerHTML = `
@@ -125,13 +162,16 @@ async function loadMyJobs() {
         html += '</div>';
         container.innerHTML = html;
     } catch (error) {
+        console.error('Failed to load jobs:', error);
         container.innerHTML = `
             <div class="alert alert-danger">
+                <h4 class="alert-heading">Error Loading Jobs</h4>
                 <p>Failed to load your job listings. Please try again later.</p>
                 <p>Error: ${error.message || 'Unknown error'}</p>
+                <hr>
+                <p class="mb-0">If this problem persists, please contact support.</p>
             </div>
         `;
-        console.error('Failed to load jobs:', error);
     }
 }
 

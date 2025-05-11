@@ -33,14 +33,26 @@ public class ApplicationService {
     }
 
     public Application createApplication(Application application) {
+        // Add debug logging
+        System.out.println("Creating application: " + application);
+
         // Ensure ID is null to force MongoDB to generate a new one
         application.setId(null);
 
-        application.setApplicationDate(LocalDate.now());
+        // Set the application date to now if not provided
+        if (application.getApplicationDate() == null) {
+            application.setApplicationDate(LocalDate.now());
+        }
+
+        // Set default status if not provided
         if (application.getStatus() == null) {
             application.setStatus(Application.ApplicationStatus.SUBMITTED);
         }
-        return applicationRepository.save(application);
+
+        // Save and return the application
+        Application savedApplication = applicationRepository.save(application);
+        System.out.println("Saved application: " + savedApplication);
+        return savedApplication;
     }
 
     public Application updateApplication(String id, Application applicationDetails) {

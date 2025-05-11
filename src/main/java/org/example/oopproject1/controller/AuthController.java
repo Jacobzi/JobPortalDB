@@ -5,8 +5,10 @@ import org.example.oopproject1.dto.JwtResponse;
 import org.example.oopproject1.dto.LoginRequest;
 import org.example.oopproject1.dto.MessageResponse;
 import org.example.oopproject1.dto.SignupRequest;
+import org.example.oopproject1.model.Recruiter;
 import org.example.oopproject1.model.User;
 import org.example.oopproject1.security.JwtUtils;
+import org.example.oopproject1.service.RecruiterService;
 import org.example.oopproject1.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -24,6 +26,9 @@ public class AuthController {
 
     @Autowired
     private UserService userService;
+
+    @Autowired
+    private RecruiterService recruiterService;
 
     @Autowired
     private JwtUtils jwtUtils;
@@ -58,6 +63,34 @@ public class AuthController {
                     signupRequest.getEmail(),
                     signupRequest.getPassword(),
                     role);
+
+            // If this is a recruiter registration, create a recruiter profile too
+            if (role.equals("RECRUITER")) {
+                // Create a recruiter profile with the provided info
+                Recruiter recruiter = new Recruiter();
+                recruiter.setName(signupRequest.getUsername());
+                recruiter.setEmail(signupRequest.getEmail());
+
+                // Use provided company and phone or default values
+                recruiter.setCompany(
+                        signupRequest.getCompany() != null && !signupRequest.getCompany().isEmpty()
+                                ? signupRequest.getCompany()
+                                : "Your Company");
+
+                // Use provided position or default
+                recruiter.setPosition(
+                        signupRequest.getPosition() != null && !signupRequest.getPosition().isEmpty()
+                                ? signupRequest.getPosition()
+                                : "Recruiter");
+
+                recruiter.setPhone(
+                        signupRequest.getPhone() != null
+                                ? signupRequest.getPhone()
+                                : "");
+
+                // Save the recruiter profile
+                recruiterService.createRecruiter(recruiter);
+            }
 
             return ResponseEntity.ok(new MessageResponse("User registered successfully!"));
         } catch (RuntimeException e) {

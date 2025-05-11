@@ -26,6 +26,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Scanner;
+import java.util.Optional;
 
 @Component
 @Profile("console")
@@ -157,8 +158,12 @@ public class ConsoleMenuRunner implements CommandLineRunner {
 
         if (isRecruiter) {
             try {
-                recruiterProfile = recruiterService.getRecruiterByEmail(currentUser.getEmail());
-                if (recruiterProfile != null) {
+                Optional<Recruiter> recruiterOptional = recruiterService.getRecruiterByEmail(currentUser.getEmail());
+                if (recruiterOptional.isPresent()) {
+                    recruiterProfile = recruiterOptional.get();
+                } else {
+                    System.out.println("Recruiter profile not found for: " + currentUser.getEmail());
+                }                if (recruiterProfile != null) {
                     System.out.println("Company: " + recruiterProfile.getCompany());
                     System.out.println("Position: " + recruiterProfile.getPosition());
                     System.out.println("Phone: " + recruiterProfile.getPhone());
@@ -527,8 +532,10 @@ public class ConsoleMenuRunner implements CommandLineRunner {
     private void viewMyJobs() {
         // Find recruiter by email
         try {
-            Recruiter recruiter = recruiterService.getRecruiterByEmail(currentUser.getEmail());
-            if (recruiter != null) {
+            Optional<Recruiter> recruiterOptional = recruiterService.getRecruiterByEmail(currentUser.getEmail());
+
+            if (recruiterOptional.isPresent()) {
+                Recruiter recruiter = recruiterOptional.get();
                 List<Job> jobs = jobService.findJobsByRecruiter(recruiter.getId());
 
                 if (jobs.isEmpty()) {
@@ -573,12 +580,14 @@ public class ConsoleMenuRunner implements CommandLineRunner {
 
         try {
             // Find recruiter by email
-            Recruiter recruiter = recruiterService.getRecruiterByEmail(currentUser.getEmail());
+            Optional<Recruiter> recruiterOptional = recruiterService.getRecruiterByEmail(currentUser.getEmail());
 
-            if (recruiter == null) {
+            if (!recruiterOptional.isPresent()) {
                 System.out.println("No recruiter profile found for your account.");
                 return;
             }
+
+            Recruiter recruiter = recruiterOptional.get();
 
             if (!recruiter.getCompany().equals(company)) {
                 System.out.println("Error: You can only post jobs for your company: " + recruiter.getCompany());
@@ -616,11 +625,14 @@ public class ConsoleMenuRunner implements CommandLineRunner {
     private void manageApplications() {
         try {
             // Find recruiter by email
-            Recruiter recruiter = recruiterService.getRecruiterByEmail(currentUser.getEmail());
-            if (recruiter == null) {
+            Optional<Recruiter> recruiterOptional = recruiterService.getRecruiterByEmail(currentUser.getEmail());
+
+            if (!recruiterOptional.isPresent()) {
                 System.out.println("No recruiter profile found for your account.");
                 return;
             }
+
+            Recruiter recruiter = recruiterOptional.get();
 
             // Get jobs posted by this recruiter
             List<Job> recruiterJobs = jobService.findJobsByRecruiter(recruiter.getId());

@@ -49,7 +49,20 @@ public class ApplicationController {
 
     @PostMapping
     public ResponseEntity<Application> createApplication(@Valid @RequestBody Application application) {
-        return new ResponseEntity<>(applicationService.createApplication(application), HttpStatus.CREATED);
+        try {
+            // Log the incoming application data for debugging
+            System.out.println("Receiving application: " + application);
+
+            Application createdApplication = applicationService.createApplication(application);
+            System.out.println("Created application: " + createdApplication);
+
+            return new ResponseEntity<>(createdApplication, HttpStatus.CREATED);
+        } catch (Exception e) {
+            // Log any errors
+            System.err.println("Error creating application: " + e.getMessage());
+            e.printStackTrace();
+            throw e;
+        }
     }
 
     @PutMapping("/{id}")

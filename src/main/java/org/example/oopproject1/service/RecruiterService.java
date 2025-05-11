@@ -9,6 +9,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Optional;
 
 @Service
 public class RecruiterService {
@@ -31,15 +32,13 @@ public class RecruiterService {
                 .orElseThrow(() -> new ResourceNotFoundException("Recruiter not found with id: " + id));
     }
 
-    public Recruiter getRecruiterByEmail(String email) {
-        return recruiterRepository.findByEmail(email)
-                .orElse(null);
+    // Updated to return Optional<Recruiter>
+    public Optional<Recruiter> getRecruiterByEmail(String email) {
+        return recruiterRepository.findByEmail(email);
     }
 
     public Recruiter createRecruiter(Recruiter recruiter) {
-
         recruiter.setId(null);
-
         return recruiterRepository.save(recruiter);
     }
 

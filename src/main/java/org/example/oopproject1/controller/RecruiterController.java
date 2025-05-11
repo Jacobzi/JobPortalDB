@@ -16,6 +16,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/recruiters")
@@ -32,7 +33,15 @@ public class RecruiterController {
         return ResponseEntity.ok(recruiterService.getAllRecruiters());
     }
 
-    // Add paginated endpoint
+    // Add this new endpoint to search by email
+    @GetMapping("/byEmail")
+    public ResponseEntity<Recruiter> getRecruiterByEmail(@RequestParam String email) {
+        Optional<Recruiter> recruiter = recruiterService.getRecruiterByEmail(email);
+        return recruiter.map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
+    // Paginated endpoint
     @GetMapping("/paged")
     public ResponseEntity<Page<Recruiter>> getPagedRecruiters(
             @RequestParam(defaultValue = "0") int page,
@@ -95,7 +104,7 @@ public class RecruiterController {
         return ResponseEntity.ok(recruiterService.getRecruitersByCompany(company));
     }
 
-    // Add paginated version
+    // Paginated version
     @GetMapping("/company/{company}/paged")
     public ResponseEntity<Page<Recruiter>> getPagedRecruitersByCompany(
             @PathVariable String company,

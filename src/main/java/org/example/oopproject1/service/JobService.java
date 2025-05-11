@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 public class JobService {
@@ -39,10 +40,12 @@ public class JobService {
     // Method for recruiters with company validation
     public Job createJob(Job job, String recruiterEmail) {
         // Get recruiter information
-        Recruiter recruiter = recruiterService.getRecruiterByEmail(recruiterEmail);
-        if (recruiter == null) {
+        Optional<Recruiter> recruiterOptional = recruiterService.getRecruiterByEmail(recruiterEmail);
+        if (!recruiterOptional.isPresent()) {
             throw new RuntimeException("Recruiter profile not found");
         }
+
+        Recruiter recruiter = recruiterOptional.get();
 
         // Validate company match
         if (!recruiter.getCompany().equals(job.getCompany())) {
