@@ -1,68 +1,79 @@
 package org.example.oopproject1.cli;
 
+import org.example.oopproject1.dto.CurrentUserDto;
+import org.example.oopproject1.dto.MessageResponse;
 import org.example.oopproject1.model.Application;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.example.oopproject1.model.Job;
 import org.example.oopproject1.model.Recruiter;
 import org.example.oopproject1.model.User;
-import org.example.oopproject1.service.ApplicationService;
-import org.example.oopproject1.service.JobService;
-import org.example.oopproject1.service.RecruiterService;
-import org.example.oopproject1.service.UserService;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Profile;
-import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.Authentication;
+import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.http.*;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.client.RestClientException;
+import org.springframework.web.client.RestTemplate;
+import org.springframework.web.util.UriComponentsBuilder;
 
 import java.time.LocalDate;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.Scanner;
-import java.util.Optional;
+import java.util.*;
 
+/**
+ * ConsoleMenuRunner now acts as an HTTP client against your REST API.
+ */
 @Component
 @Profile("console")
 @ConditionalOnProperty(name = "org.example.oopproject1.cli.enabled", havingValue = "true", matchIfMissing = true)
 public class ConsoleMenuRunner implements CommandLineRunner {
 
-    private final JobService jobService;
-    private final RecruiterService recruiterService;
-    private final UserService userService;
-    private final ApplicationService applicationService;
+    private final RestTemplate restTemplate;
+    private final String baseUrl;
     private final ApplicationContext applicationContext;
-    private final AuthenticationManager authenticationManager;
     private final Scanner scanner = new Scanner(System.in);
-    private User currentUser = null;
+    private String jwtToken;
+    private User currentUser;
 
-    @Autowired
-    public ConsoleMenuRunner(JobService jobService,
-                             RecruiterService recruiterService,
-                             UserService userService,
-                             ApplicationService applicationService,
-                             ApplicationContext applicationContext,
-                             AuthenticationManager authenticationManager) {
-        this.jobService = jobService;
-        this.recruiterService = recruiterService;
-        this.userService = userService;
-        this.applicationService = applicationService;
+    public ConsoleMenuRunner(
+            RestTemplate restTemplate,
+            @Value("${cli.base-url:http://localhost:8080/api}") String baseUrl,
+            ApplicationContext applicationContext
+    ) {
+        this.restTemplate = restTemplate;
+        this.baseUrl = baseUrl;
         this.applicationContext = applicationContext;
-        this.authenticationManager = authenticationManager;
+
+        // ←– STEP 2: register interceptor here
+        this.restTemplate.getInterceptors().add((request, body, execution) -> {
+            if (this.jwtToken != null) {
+                request.getHeaders().setBearerAuth(this.jwtToken);
+            }
+            return execution.execute(request, body);
+        });
     }
 
+    /**
+     * The entry point for running the Job Portal Console Interface.
+     * This method is called when the application starts.
+     * It shows the main menu to the user.
+     *
+     * @param args command line arguments
+     */
     @Override
     public void run(String... args) {
-        System.out.println("Starting Job Portal Console Interface...");
+        System.out.println("Starting Job Portal Console Interface (HTTP client mode)...");
         showMainMenu();
     }
 
+    /**
+     * Displays the main menu with options for login, registration, and guest browsing.
+     * It processes the user's choice and performs the corresponding action by calling your REST API.
+     */
     private void showMainMenu() {
         boolean running = true;
         while (running) {
@@ -73,17 +84,15 @@ public class ConsoleMenuRunner implements CommandLineRunner {
             System.out.println("4. Exit");
             System.out.print("Enter your choice: ");
 
-            String choice = scanner.nextLine();
-
-            switch (choice) {
+            switch (scanner.nextLine()) {
                 case "1":
                     login();
                     break;
                 case "2":
-                    registerUser();
+                    registerUser();      // you’ll re-implement this to POST /api/auth/register
                     break;
                 case "3":
-                    browseJobsAsGuest();
+                    browseJobsAsGuest(); // you’ll re-implement this to GET /api/jobs
                     break;
                 case "4":
                     running = false;
@@ -96,6 +105,11 @@ public class ConsoleMenuRunner implements CommandLineRunner {
         }
     }
 
+    /**
+     * Prompts for credentials, calls POST /api/auth/login,
+     * stores the returned JWT, fetches the current user profile,
+     * and then moves into the appropriate role menu.
+     */
     private void login() {
         System.out.println("\n===== Login =====");
         System.out.print("Username: ");
@@ -103,32 +117,65 @@ public class ConsoleMenuRunner implements CommandLineRunner {
         System.out.print("Password: ");
         String password = scanner.nextLine();
 
+        // build login payload
+        Map<String, String> creds = Map.of("username", username, "password", password);
+        HttpEntity<Map<String, String>> request = new HttpEntity<>(creds);
+
         try {
-            Authentication authentication = authenticationManager.authenticate(
-                    new UsernamePasswordAuthenticationToken(username, password)
+            // 1) POST to /auth/login
+            ResponseEntity<Map> resp = restTemplate.postForEntity(
+                    baseUrl + "/auth/login", request, Map.class
             );
 
-            SecurityContextHolder.getContext().setAuthentication(authentication);
-            currentUser = (User) authentication.getPrincipal();
+            if (resp.getStatusCode() == HttpStatus.OK && resp.getBody() != null) {
+                // 2) extract the token
+                jwtToken = (String) resp.getBody().get("token");
+                System.out.println("Login successful.");
 
-            System.out.println("Login successful. Welcome, " + username + "!");
+                // 3) fetch only the slim DTO
+                CurrentUserDto dto = restTemplate.getForObject(
+                        baseUrl + "/users/me", CurrentUserDto.class
+                );
 
-            if (hasRole(currentUser, "ADMIN")) {
-                showAdminMenu();
-            } else if (hasRole(currentUser, "RECRUITER")) {
-                showRecruiterMenu();
+                // 4) map DTO → your console User model
+                currentUser = new User();
+                currentUser.setId(dto.getId());
+                currentUser.setUsername(dto.getUsername());
+                currentUser.setEmail(dto.getEmail());
+                currentUser.setRoles(dto.getRoles());
+
+                // 5) branch on role
+                if (hasRole(currentUser, "ADMIN")) {
+                    showAdminMenu();
+                } else if (hasRole(currentUser, "RECRUITER")) {
+                    showRecruiterMenu();
+                } else {
+                    showClientMenu();
+                }
             } else {
-                showClientMenu();
+                System.out.println("Login failed: " + resp.getStatusCode());
             }
-        } catch (Exception e) {
-            System.out.println("Login failed: Invalid credentials");
+        } catch (RestClientException e) {
+            System.out.println("Login error: " + e.getMessage());
         }
     }
 
+
+    /**
+     * Checks if the user has the specified role.
+     *
+     * @param user The user to check.
+     * @param role The role to check for.
+     * @return true if the user has the specified role, otherwise false.
+     */
     private boolean hasRole(User user, String role) {
         return user.getRoles().contains(role);
     }
 
+    /**
+     * Registers a new user with the specified details.
+     * This includes username, email, and password.
+     */
     private void registerUser() {
         System.out.println("\n===== User Registration =====");
         System.out.print("Username: ");
@@ -138,107 +185,110 @@ public class ConsoleMenuRunner implements CommandLineRunner {
         System.out.print("Password: ");
         String password = scanner.nextLine();
 
+        var payload = new HashMap<String,String>();
+        payload.put("username", username);
+        payload.put("email",    email);
+        payload.put("password", password);
+
         try {
-            userService.registerUser(username, email, password, "USER");
-            System.out.println("Registration successful! You can now login.");
-        } catch (Exception e) {
-            System.out.println("Registration failed: " + e.getMessage());
+            ResponseEntity<Void> resp = restTemplate.postForEntity(
+                    baseUrl + "/auth/register",
+                    payload,
+                    Void.class
+            );
+            if (resp.getStatusCode() == HttpStatus.CREATED) {
+                System.out.println("Registration successful! Please log in.");
+            } else {
+                System.out.println("Registration returned: " + resp.getStatusCode());
+            }
+        } catch (HttpClientErrorException ex) {
+            System.out.println("Registration failed: " + ex.getResponseBodyAsString());
         }
     }
 
+
+    /**
+     * Updates the current user's profile with new information.
+     * Users can update their email, password, and recruiter-specific information.
+     */
     private void updateProfile() {
         System.out.println("\n===== Update Profile =====");
-        System.out.println("Current Profile Information:");
         System.out.println("Username: " + currentUser.getUsername());
-        System.out.println("Email: " + currentUser.getEmail());
+        System.out.println("Email:    " + currentUser.getEmail());
 
-        // Check if the user is a recruiter
-        boolean isRecruiter = hasRole(currentUser, "RECRUITER");
-        Recruiter recruiterProfile = null;
-
-        if (isRecruiter) {
-            try {
-                Optional<Recruiter> recruiterOptional = recruiterService.getRecruiterByEmail(currentUser.getEmail());
-                if (recruiterOptional.isPresent()) {
-                    recruiterProfile = recruiterOptional.get();
-                } else {
-                    System.out.println("Recruiter profile not found for: " + currentUser.getEmail());
-                }                if (recruiterProfile != null) {
-                    System.out.println("Company: " + recruiterProfile.getCompany());
-                    System.out.println("Position: " + recruiterProfile.getPosition());
-                    System.out.println("Phone: " + recruiterProfile.getPhone());
-                }
-            } catch (Exception e) {
-                System.out.println("Error retrieving recruiter profile: " + e.getMessage());
-            }
-        }
-
-        System.out.println("\nUpdate Profile Information:");
-        System.out.println("(Leave field blank to keep current value)");
-
-        // Update user information
-        System.out.print("New Email: ");
-        String newEmail = scanner.nextLine().trim();
-
-        System.out.print("New Password (Enter to skip): ");
+        // --- read new email/password ---
+        System.out.print("\nNew Email (leave blank to keep): ");
+        String newEmail    = scanner.nextLine().trim();
+        System.out.print("New Password (leave blank to keep): ");
         String newPassword = scanner.nextLine().trim();
 
-        // Update user entity
+        // capture the old email so we can still find the recruiter doc
+        String oldEmail = currentUser.getEmail();
+
+        // --- update USER collection ---
         if (!newEmail.isEmpty() || !newPassword.isEmpty()) {
             try {
-                userService.updateUserWithPassword(currentUser.getId(),
-                        newEmail.isEmpty() ? null : newEmail,
-                        newPassword.isEmpty() ? null : newPassword);
+                Map<String, Object> updates = new HashMap<>();
+                if (!newEmail.isEmpty())    updates.put("email",    newEmail);
+                if (!newPassword.isEmpty()) updates.put("password", newPassword);
 
-                if (!newEmail.isEmpty()) {
-                    currentUser.setEmail(newEmail);
-                }
-
+                restTemplate.put(
+                        baseUrl + "/users/" + currentUser.getId(),
+                        updates
+                );
+                if (!newEmail.isEmpty()) currentUser.setEmail(newEmail);
                 System.out.println("User profile updated successfully!");
-            } catch (Exception e) {
-                System.out.println("Error updating user profile: " + e.getMessage());
+            } catch (HttpClientErrorException ex) {
+                System.out.println("Error updating user profile: " + ex.getResponseBodyAsString());
             }
         }
 
-        // If user is a recruiter, update recruiter profile as well
-        if (isRecruiter && recruiterProfile != null) {
-            System.out.println("\nUpdate Recruiter Information:");
-
-            System.out.print("New Company: ");
-            String company = scanner.nextLine().trim();
-            if (!company.isEmpty()) {
-                recruiterProfile.setCompany(company);
-            }
-
-            System.out.print("New Position: ");
+        // --- update RECRUITER collection, if recruiter ---
+        if (hasRole(currentUser, "RECRUITER")) {
+            System.out.println("\n===== Update Recruiter Info =====");
+            System.out.print("New Company  (leave blank to keep): ");
+            String company  = scanner.nextLine().trim();
+            System.out.print("New Position (leave blank to keep): ");
             String position = scanner.nextLine().trim();
-            if (!position.isEmpty()) {
-                recruiterProfile.setPosition(position);
-            }
-
-            System.out.print("New Phone: ");
-            String phone = scanner.nextLine().trim();
-            if (!phone.isEmpty()) {
-                recruiterProfile.setPhone(phone);
-            }
-
-            // Update email in recruiter profile if it was changed
-            if (!newEmail.isEmpty()) {
-                recruiterProfile.setEmail(newEmail);
-            }
+            System.out.print("New Phone    (leave blank to keep): ");
+            String phone    = scanner.nextLine().trim();
 
             try {
-                recruiterService.updateRecruiter(recruiterProfile.getId(), recruiterProfile);
+                // 1) fetch the recruiter using the old email
+                Recruiter rec = restTemplate.getForObject(
+                        baseUrl + "/recruiters/byEmail?email={email}",
+                        Recruiter.class,
+                        oldEmail
+                );
+
+                // 2) apply any field changes
+                if (!company.isEmpty())  rec.setCompany(company);
+                if (!position.isEmpty()) rec.setPosition(position);
+                if (!phone.isEmpty())    rec.setPhone(phone);
+
+                // 3) if we changed the email for the user, update it on the recruiter too
+                if (!newEmail.isEmpty()) {
+                    rec.setEmail(newEmail);
+                }
+
+                // 4) PUT the **entire** Recruiter back
+                restTemplate.put(
+                        baseUrl + "/recruiters/" + rec.getId(),
+                        rec
+                );
                 System.out.println("Recruiter profile updated successfully!");
-            } catch (Exception e) {
-                System.out.println("Error updating recruiter profile: " + e.getMessage());
+            } catch (HttpClientErrorException ex) {
+                System.out.println("Error updating recruiter profile: " + ex.getResponseBodyAsString());
             }
         }
 
-        System.out.println("\nPress Enter to continue...");
+        System.out.println("\nPress Enter to continue…");
         scanner.nextLine();
     }
 
+    /**
+     * Lists all active job postings available to unauthenticated (guest) users.
+     */
     private void browseJobsAsGuest() {
         boolean browsing = true;
         while (browsing) {
@@ -274,6 +324,9 @@ public class ConsoleMenuRunner implements CommandLineRunner {
         }
     }
 
+    /**
+     * Displays and handles the client‐user menu options (Browse Jobs, View Applications, Update Profile, Logout).
+     */
     private void showClientMenu() {
         boolean inClientMenu = true;
         while (inClientMenu) {
@@ -316,6 +369,9 @@ public class ConsoleMenuRunner implements CommandLineRunner {
         }
     }
 
+    /**
+     * Displays and handles the recruiter‐user menu options (View My Jobs, Post New Job, Manage Applications, Update Profile, Logout).
+     */
     private void showRecruiterMenu() {
         boolean inRecruiterMenu = true;
         while (inRecruiterMenu) {
@@ -354,6 +410,9 @@ public class ConsoleMenuRunner implements CommandLineRunner {
         }
     }
 
+    /**
+     * Displays and handles the admin‐user menu options (Manage Jobs, Recruiters, Users, View Statistics, Logout).
+     */
     private void showAdminMenu() {
         boolean inAdminMenu = true;
         while (inAdminMenu) {
@@ -392,79 +451,118 @@ public class ConsoleMenuRunner implements CommandLineRunner {
         }
     }
 
-    // Implementation of menu options
+    /**
+     * Prints every job in the system in a tabular console format.
+     */
     private void displayAllJobs() {
-        List<Job> jobs = jobService.getAllJobs();
-        if (jobs.isEmpty()) {
-            System.out.println("No jobs found.");
-            return;
-        }
-
-        System.out.println("\n===== All Jobs =====");
-        for (Job job : jobs) {
-            System.out.printf("ID: %s\nTitle: %s\nCompany: %s\nLocation: %s\nSalary: $%.2f - $%.2f\n\n",
-                    job.getId(), job.getTitle(), job.getCompany(), job.getLocation(),
-                    job.getMinSalary(), job.getMaxSalary());
+        try {
+            Job[] jobs = restTemplate.getForObject(baseUrl + "/jobs", Job[].class);
+            if (jobs == null || jobs.length == 0) {
+                System.out.println("No jobs found.");
+                return;
+            }
+            System.out.println("\n===== All Jobs =====");
+            for (Job job : jobs) {
+                System.out.printf("ID: %s\nTitle: %s\nCompany: %s\nLocation: %s\nSalary: $%.2f - $%.2f\n\n",
+                        job.getId(), job.getTitle(), job.getCompany(), job.getLocation(),
+                        job.getMinSalary(), job.getMaxSalary());
+            }
+        } catch (RestClientException ex) {
+            System.out.println("Error fetching jobs: " + ex.getMessage());
         }
     }
 
+    /**
+     * Searches and prints jobs whose title or description contains the given keyword.
+     */
     private void searchJobsByKeyword() {
         System.out.print("Enter search keyword: ");
         String keyword = scanner.nextLine();
 
-        List<Job> jobs = jobService.searchJobs(keyword);
-        if (jobs.isEmpty()) {
-            System.out.println("No jobs found matching: " + keyword);
-            return;
-        }
-
-        System.out.println("\n===== Search Results for '" + keyword + "' =====");
-        for (Job job : jobs) {
-            System.out.printf("ID: %s\nTitle: %s\nCompany: %s\nLocation: %s\n\n",
-                    job.getId(), job.getTitle(), job.getCompany(), job.getLocation());
+        try {
+            String uri = UriComponentsBuilder
+                    .fromHttpUrl(baseUrl + "/jobs/search")
+                    .queryParam("keyword", keyword)
+                    .toUriString();
+            Job[] jobs = restTemplate.getForObject(uri, Job[].class);
+            if (jobs == null || jobs.length == 0) {
+                System.out.println("No jobs found matching: " + keyword);
+                return;
+            }
+            System.out.println("\n===== Search Results for '" + keyword + "' =====");
+            for (Job job : jobs) {
+                System.out.printf("ID: %s\nTitle: %s\nCompany: %s\nLocation: %s\n\n",
+                        job.getId(), job.getTitle(), job.getCompany(), job.getLocation());
+            }
+        } catch (RestClientException ex) {
+            System.out.println("Error searching jobs: " + ex.getMessage());
         }
     }
 
+    /**
+     * Filters and prints jobs matching the specified location.
+     */
     private void filterJobsByLocation() {
         System.out.print("Enter location: ");
         String location = scanner.nextLine();
 
-        List<Job> jobs = jobService.findActiveJobsByLocation(location);
-        if (jobs.isEmpty()) {
-            System.out.println("No jobs found in location: " + location);
-            return;
-        }
-
-        System.out.println("\n===== Jobs in " + location + " =====");
-        for (Job job : jobs) {
-            System.out.printf("ID: %s\nTitle: %s\nCompany: %s\n\n",
-                    job.getId(), job.getTitle(), job.getCompany());
+        try {
+            String uri = UriComponentsBuilder
+                    .fromHttpUrl(baseUrl + "/jobs/location")
+                    .queryParam("location", location)
+                    .toUriString();
+            Job[] jobs = restTemplate.getForObject(uri, Job[].class);
+            if (jobs == null || jobs.length == 0) {
+                System.out.println("No jobs found in location: " + location);
+                return;
+            }
+            System.out.println("\n===== Jobs in " + location + " =====");
+            for (Job job : jobs) {
+                System.out.printf("ID: %s\nTitle: %s\nCompany: %s\n\n",
+                        job.getId(), job.getTitle(), job.getCompany());
+            }
+        } catch (RestClientException ex) {
+            System.out.println("Error filtering by location: " + ex.getMessage());
         }
     }
 
+    /**
+     * Filters and prints jobs matching the specified company name.
+     */
     private void filterJobsByCompany() {
         System.out.print("Enter company name: ");
         String company = scanner.nextLine();
 
-        List<Job> jobs = jobService.findJobsByCompany(company);
-        if (jobs.isEmpty()) {
-            System.out.println("No jobs found for company: " + company);
-            return;
-        }
-
-        System.out.println("\n===== Jobs at " + company + " =====");
-        for (Job job : jobs) {
-            System.out.printf("ID: %s\nTitle: %s\nLocation: %s\n\n",
-                    job.getId(), job.getTitle(), job.getLocation());
+        try {
+            String uri = UriComponentsBuilder
+                    .fromHttpUrl(baseUrl + "/jobs/company")
+                    .queryParam("company", company)
+                    .toUriString();
+            Job[] jobs = restTemplate.getForObject(uri, Job[].class);
+            if (jobs == null || jobs.length == 0) {
+                System.out.println("No jobs found for company: " + company);
+                return;
+            }
+            System.out.println("\n===== Jobs at " + company + " =====");
+            for (Job job : jobs) {
+                System.out.printf("ID: %s\nTitle: %s\nLocation: %s\n\n",
+                        job.getId(), job.getTitle(), job.getLocation());
+            }
+        } catch (RestClientException ex) {
+            System.out.println("Error filtering by company: " + ex.getMessage());
         }
     }
 
+    /**
+     * (If present) Prompts for a job ID and submits an application on behalf of the current user.
+     */
     private void applyForJob() {
         System.out.print("Enter Job ID to apply for: ");
         String jobId = scanner.nextLine();
 
         try {
-            Job job = jobService.getJobById(jobId);
+            // Fetch job over HTTP
+            Job job = restTemplate.getForObject(baseUrl + "/jobs/" + jobId, Job.class);
             System.out.println("\nJob Details:");
             System.out.printf("Title: %s\nCompany: %s\nLocation: %s\n\n",
                     job.getTitle(), job.getCompany(), job.getLocation());
@@ -473,89 +571,120 @@ public class ConsoleMenuRunner implements CommandLineRunner {
             String confirm = scanner.nextLine();
 
             if (confirm.equalsIgnoreCase("y")) {
-                // Create a new application
+                // Build application payload
                 Application application = new Application();
                 application.setJobId(jobId);
-
-                // Set candidate information based on current user
                 application.setCandidateName(currentUser.getUsername());
                 application.setEmail(currentUser.getEmail());
 
-                // Get phone number
                 System.out.print("Enter your phone number: ");
-                String phone = scanner.nextLine();
-                application.setPhone(phone);
+                application.setPhone(scanner.nextLine());
 
-                // Prompt for a cover letter
                 System.out.println("Enter a short cover letter or message (press Enter when done):");
-                String coverLetter = scanner.nextLine();
-                application.setCoverLetterText(coverLetter);
+                application.setCoverLetterText(scanner.nextLine());
 
-                // Set status to SUBMITTED
                 application.setStatus(Application.ApplicationStatus.SUBMITTED);
 
-                // The applicationDate will be set by the ApplicationService
+                // POST to /applications
+                Application created = restTemplate.postForObject(
+                        baseUrl + "/applications",
+                        application,
+                        Application.class
+                );
 
-                // Save the application
-                applicationService.createApplication(application);
-                System.out.println("Application submitted successfully!");
+                System.out.println("Application submitted successfully! ID: " + created.getId());
             }
-        } catch (Exception e) {
-            System.out.println("Error: " + e.getMessage());
+        } catch (RestClientException ex) {
+            System.out.println("Error: " + ex.getMessage());
         }
     }
 
+    /**
+     * Retrieves and prints all job applications submitted by the current client user.
+     */
     private void viewMyApplications() {
         try {
-            // Get the current user's email
-            String userEmail = currentUser.getEmail();
+            String uri = UriComponentsBuilder
+                    .fromHttpUrl(baseUrl + "/applications")
+                    .queryParam("email", currentUser.getEmail())
+                    .toUriString();
 
-            // Get applications by email
-            List<Application> applications = applicationService.getApplicationsByEmail(userEmail);
+            ResponseEntity<List<Application>> resp = restTemplate.exchange(
+                    uri,
+                    HttpMethod.GET,
+                    null,
+                    new ParameterizedTypeReference<List<Application>>() {
+                    }
+            );
 
-            if (applications.isEmpty()) {
+            List<Application> applications = resp.getBody();
+            if (applications == null || applications.isEmpty()) {
                 System.out.println("You haven't submitted any applications yet.");
                 return;
             }
 
             System.out.println("\n===== My Applications =====");
             for (Application app : applications) {
-                Job job = jobService.getJobById(app.getJobId());
+                Job job = restTemplate.getForObject(
+                        baseUrl + "/jobs/" + app.getJobId(),
+                        Job.class
+                );
                 System.out.printf("Application ID: %s\nJob: %s at %s\nStatus: %s\nApplied Date: %s\n\n",
-                        app.getId(), job.getTitle(), job.getCompany(), app.getStatus(), app.getApplicationDate());
+                        app.getId(),
+                        job.getTitle(),
+                        job.getCompany(),
+                        app.getStatus(),
+                        app.getApplicationDate()
+                );
             }
-        } catch (Exception e) {
-            System.out.println("Error: " + e.getMessage());
+        } catch (RestClientException ex) {
+            System.out.println("Error: " + ex.getMessage());
         }
     }
 
+    /**
+     * Fetches and prints all jobs posted by the current recruiter.
+     */
     private void viewMyJobs() {
-        // Find recruiter by email
         try {
-            Optional<Recruiter> recruiterOptional = recruiterService.getRecruiterByEmail(currentUser.getEmail());
+            // GET /recruiters/me/jobs?page=0&size=20
+            String uri = UriComponentsBuilder
+                    .fromHttpUrl(baseUrl + "/recruiters/me/jobs")
+                    .queryParam("page", 0)
+                    .queryParam("size", 20)
+                    .toUriString();
 
-            if (recruiterOptional.isPresent()) {
-                Recruiter recruiter = recruiterOptional.get();
-                List<Job> jobs = jobService.findJobsByRecruiter(recruiter.getId());
+            ResponseEntity<PageResponse<Job>> resp = restTemplate.exchange(
+                    uri,
+                    HttpMethod.GET,
+                    null,
+                    new ParameterizedTypeReference<PageResponse<Job>>() {}
+            );
+            List<Job> jobs = resp.getBody().getContent();
 
-                if (jobs.isEmpty()) {
-                    System.out.println("You haven't posted any jobs yet.");
-                    return;
-                }
-
-                System.out.println("\n===== My Posted Jobs =====");
-                for (Job job : jobs) {
-                    System.out.printf("ID: %s\nTitle: %s\nCompany: %s\nLocation: %s\n\n",
-                            job.getId(), job.getTitle(), job.getCompany(), job.getLocation());
-                }
-            } else {
-                System.out.println("No recruiter profile found for your account.");
+            if (jobs.isEmpty()) {
+                System.out.println("You haven't posted any jobs yet.");
+                return;
             }
-        } catch (Exception e) {
-            System.out.println("Error: " + e.getMessage());
+
+            System.out.println("\n===== My Posted Jobs =====");
+            for (Job job : jobs) {
+                System.out.printf(
+                        "ID: %s\nTitle: %s\nCompany: %s\nLocation: %s\n\n",
+                        job.getId(),
+                        job.getTitle(),
+                        job.getCompany(),
+                        job.getLocation()
+                );
+            }
+        } catch (RestClientException ex) {
+            System.out.println("Error fetching your jobs: " + ex.getMessage());
         }
     }
 
+    /**
+     * Prompts the recruiter for all required fields and creates a new job posting.
+     */
     private void postNewJob() {
         System.out.println("\n===== Post New Job =====");
         System.out.print("Title: ");
@@ -573,139 +702,141 @@ public class ConsoleMenuRunner implements CommandLineRunner {
         System.out.print("Employment Type: ");
         String employmentType = scanner.nextLine();
         System.out.print("Required Skills (comma-separated): ");
-        String skillsInput = scanner.nextLine();
-        List<String> requiredSkills = Arrays.asList(skillsInput.split(","));
+        List<String> requiredSkills = Arrays.asList(scanner.nextLine().split(","));
         System.out.print("Deadline (YYYY-MM-DD): ");
         String deadlineStr = scanner.nextLine();
 
         try {
-            // Find recruiter by email
-            Optional<Recruiter> recruiterOptional = recruiterService.getRecruiterByEmail(currentUser.getEmail());
+            Job payload = new Job();
+            payload.setTitle(title);
+            payload.setCompany(company);
+            payload.setDescription(description);
+            payload.setMinSalary(minSalary);
+            payload.setMaxSalary(maxSalary);
+            payload.setLocation(location);
+            payload.setEmploymentType(employmentType);
+            payload.setRequiredSkills(requiredSkills);
+            payload.setPostDate(LocalDate.now());
+            payload.setRecruiterId(currentUser.getId());
+            payload.setDeadlineDate(
+                    !deadlineStr.isEmpty()
+                            ? LocalDate.parse(deadlineStr)
+                            : LocalDate.now().plusMonths(1)
+            );
+            payload.setActive(true);
 
-            if (!recruiterOptional.isPresent()) {
-                System.out.println("No recruiter profile found for your account.");
-                return;
-            }
-
-            Recruiter recruiter = recruiterOptional.get();
-
-            if (!recruiter.getCompany().equals(company)) {
-                System.out.println("Error: You can only post jobs for your company: " + recruiter.getCompany());
-                return;
-            }
-
-            Job job = new Job();
-            job.setTitle(title);
-            job.setCompany(company);
-            job.setDescription(description);
-            job.setMinSalary(minSalary);
-            job.setMaxSalary(maxSalary);
-            job.setLocation(location);
-            job.setEmploymentType(employmentType);
-            job.setRequiredSkills(requiredSkills);
-            job.setPostDate(LocalDate.now());
-            job.setRecruiterId(recruiter.getId());
-
-            if (!deadlineStr.isEmpty()) {
-                job.setDeadlineDate(LocalDate.parse(deadlineStr));
-            } else {
-                job.setDeadlineDate(LocalDate.now().plusMonths(1));
-            }
-
-            job.setActive(true);
-            job.setRecruiterId(recruiter.getId());
-
-            Job createdJob = jobService.createJob(job);
-            System.out.println("Job posted successfully with ID: " + createdJob.getId());
-        } catch (Exception e) {
-            System.out.println("Error posting job: " + e.getMessage());
+            Job created = restTemplate.postForObject(
+                    baseUrl + "/jobs",
+                    payload,
+                    Job.class
+            );
+            System.out.println("Job posted successfully with ID: " + created.getId());
+        } catch (RestClientException ex) {
+            System.out.println("Error posting job: " + ex.getMessage());
         }
     }
 
+    /**
+     * Lets the recruiter browse applications for each of their jobs over HTTP.
+     */
     private void manageApplications() {
         try {
-            // Find recruiter by email
-            Optional<Recruiter> recruiterOptional = recruiterService.getRecruiterByEmail(currentUser.getEmail());
-
-            if (!recruiterOptional.isPresent()) {
+            // 1) Lookup recruiter by email
+            Recruiter recruiter = restTemplate.getForObject(
+                    baseUrl + "/recruiters/byEmail?email={email}",
+                    Recruiter.class,
+                    currentUser.getEmail()
+            );
+            if (recruiter == null) {
                 System.out.println("No recruiter profile found for your account.");
                 return;
             }
+            String recruiterId = recruiter.getId();
 
-            Recruiter recruiter = recruiterOptional.get();
-
-            // Get jobs posted by this recruiter
-            List<Job> recruiterJobs = jobService.findJobsByRecruiter(recruiter.getId());
-            if (recruiterJobs.isEmpty()) {
+            // 2) Fetch all jobs for that recruiter (path param, not query param)
+            String jobsUri = baseUrl + "/jobs/recruiter/" + recruiterId;
+            ResponseEntity<List<Job>> jobsResp = restTemplate.exchange(
+                    jobsUri,
+                    HttpMethod.GET,
+                    null,
+                    new ParameterizedTypeReference<List<Job>>() {}
+            );
+            List<Job> recruiterJobs = jobsResp.getBody();
+            if (recruiterJobs == null || recruiterJobs.isEmpty()) {
                 System.out.println("You haven't posted any jobs yet.");
                 return;
             }
 
-            // Get job IDs
-            List<String> jobIds = new java.util.ArrayList<>();
-            for (Job job : recruiterJobs) {
-                jobIds.add(job.getId());
-            }
-
-            // For each job, get and process applications
-            boolean hasApplications = false;
-
+            // 3) For each job, fetch its applications via the /applications/job/{jobId} endpoint
             System.out.println("\n===== Applications for Your Jobs =====");
-
             for (Job job : recruiterJobs) {
-                List<Application> jobApplications = applicationService.getApplicationsByJobId(job.getId());
+                String appsUri = baseUrl + "/applications/job/" + job.getId();
+                ResponseEntity<List<Application>> appsResp = restTemplate.exchange(
+                        appsUri,
+                        HttpMethod.GET,
+                        null,
+                        new ParameterizedTypeReference<List<Application>>() {}
+                );
+                List<Application> apps = appsResp.getBody();
+                if (apps == null || apps.isEmpty()) {
+                    continue;
+                }
 
-                if (!jobApplications.isEmpty()) {
-                    hasApplications = true;
-                    System.out.printf("\n--- Applications for: %s ---\n", job.getTitle());
-
-                    for (Application app : jobApplications) {
-                        System.out.printf("ID: %s | Candidate: %s | Email: %s | Status: %s | Date: %s\n",
-                                app.getId(), app.getCandidateName(), app.getEmail(),
-                                app.getStatus(), app.getApplicationDate());
-
-                        System.out.println("1. View Details  2. Update Status  3. Next Application");
-                        System.out.print("Enter choice (or any other key to skip): ");
-                        String choice = scanner.nextLine();
-
-                        if (choice.equals("1")) {
-                            viewApplicationDetails(app);
-                        } else if (choice.equals("2")) {
-                            updateApplicationStatus(app);
-                        }
+                System.out.printf("\n--- Applications for: %s ---%n", job.getTitle());
+                for (Application app : apps) {
+                    System.out.printf(
+                            "ID: %s | Candidate: %s | Email: %s | Status: %s | Date: %s%n",
+                            app.getId(), app.getCandidateName(), app.getEmail(),
+                            app.getStatus(), app.getApplicationDate()
+                    );
+                    System.out.println("1. View Details   2. Update Status   3. Next Application");
+                    String choice = scanner.nextLine().trim();
+                    switch (choice) {
+                        case "1": viewApplicationDetails(app); break;
+                        case "2": updateApplicationStatus(app); break;
+                        default: /* next */ ;
                     }
                 }
             }
 
-            if (!hasApplications) {
-                System.out.println("No applications received for your jobs yet.");
-            }
-        } catch (Exception e) {
-            System.out.println("Error: " + e.getMessage());
+        } catch (RestClientException ex) {
+            System.out.println("Error fetching applications: " + ex.getMessage());
         }
     }
 
+    /**
+     * Displays detailed information about a single application, fetching fresh over HTTP.
+     */
     private void viewApplicationDetails(Application app) {
-        System.out.println("\n----- Application Details -----");
-        System.out.println("Candidate: " + app.getCandidateName());
-        System.out.println("Email: " + app.getEmail());
-        System.out.println("Phone: " + app.getPhone());
-        System.out.println("Status: " + app.getStatus());
-        System.out.println("Applied on: " + app.getApplicationDate());
+        try {
+            Application fresh = restTemplate.getForObject(
+                    baseUrl + "/applications/" + app.getId(),
+                    Application.class
+            );
+            System.out.println("\n----- Application Details -----");
+            System.out.println("Candidate: " + fresh.getCandidateName());
+            System.out.println("Email: " + fresh.getEmail());
+            System.out.println("Phone: " + fresh.getPhone());
+            System.out.println("Status: " + fresh.getStatus());
+            System.out.println("Applied on: " + fresh.getApplicationDate());
 
-        if (app.getCoverLetterText() != null && !app.getCoverLetterText().isEmpty()) {
-            System.out.println("\nCover Letter:");
-            System.out.println(app.getCoverLetterText());
+            if (fresh.getCoverLetterText() != null && !fresh.getCoverLetterText().isEmpty()) {
+                System.out.println("\nCover Letter:");
+                System.out.println(fresh.getCoverLetterText());
+            }
+            if (fresh.getResumeUrl() != null && !fresh.getResumeUrl().isEmpty()) {
+                System.out.println("\nResume URL: " + fresh.getResumeUrl());
+            }
+            System.out.println("\nPress Enter to continue...");
+            scanner.nextLine();
+        } catch (RestClientException ex) {
+            System.out.println("Error fetching details: " + ex.getMessage());
         }
-
-        if (app.getResumeUrl() != null && !app.getResumeUrl().isEmpty()) {
-            System.out.println("\nResume URL: " + app.getResumeUrl());
-        }
-
-        System.out.println("\nPress Enter to continue...");
-        scanner.nextLine();
     }
 
+    /**
+     * Allows a recruiter to change the status of a particular application via PUT over HTTP.
+     */
     private void updateApplicationStatus(Application app) {
         System.out.println("\nCurrent Status: " + app.getStatus());
         System.out.println("Select new status:");
@@ -718,23 +849,42 @@ public class ConsoleMenuRunner implements CommandLineRunner {
 
         String choice = scanner.nextLine();
         Application.ApplicationStatus newStatus;
-
         switch (choice) {
-            case "1": newStatus = Application.ApplicationStatus.SUBMITTED; break;
-            case "2": newStatus = Application.ApplicationStatus.REVIEWING; break;
-            case "3": newStatus = Application.ApplicationStatus.INTERVIEWED; break;
-            case "4": newStatus = Application.ApplicationStatus.ACCEPTED; break;
-            case "5": newStatus = Application.ApplicationStatus.REJECTED; break;
+            case "1":
+                newStatus = Application.ApplicationStatus.SUBMITTED;
+                break;
+            case "2":
+                newStatus = Application.ApplicationStatus.REVIEWING;
+                break;
+            case "3":
+                newStatus = Application.ApplicationStatus.INTERVIEWED;
+                break;
+            case "4":
+                newStatus = Application.ApplicationStatus.ACCEPTED;
+                break;
+            case "5":
+                newStatus = Application.ApplicationStatus.REJECTED;
+                break;
             default:
                 System.out.println("Invalid choice. Status not updated.");
                 return;
         }
 
-        app.setStatus(newStatus);
-        applicationService.updateApplication(app.getId(), app);
-        System.out.println("Application status updated to " + newStatus);
+        try {
+            app.setStatus(newStatus);
+            restTemplate.put(
+                    baseUrl + "/applications/" + app.getId(),
+                    app
+            );
+            System.out.println("Application status updated to " + newStatus);
+        } catch (RestClientException ex) {
+            System.out.println("Error updating status: " + ex.getMessage());
+        }
     }
 
+    /**
+     * Offers the admin sub‐menu to view, add, update, or delete job listings.
+     */
     private void manageJobs() {
         boolean managing = true;
         while (managing) {
@@ -770,6 +920,9 @@ public class ConsoleMenuRunner implements CommandLineRunner {
         }
     }
 
+    /**
+     * Adds a new job via HTTP POST.
+     */
     private void addNewJob() {
         System.out.println("\n===== Add New Job =====");
         System.out.print("Title: ");
@@ -787,44 +940,53 @@ public class ConsoleMenuRunner implements CommandLineRunner {
         System.out.print("Employment Type: ");
         String employmentType = scanner.nextLine();
         System.out.print("Required Skills (comma-separated): ");
-        String skillsInput = scanner.nextLine();
-        List<String> requiredSkills = Arrays.asList(skillsInput.split(","));
+        List<String> requiredSkills = Arrays.asList(scanner.nextLine().split(","));
         System.out.print("Deadline (YYYY-MM-DD): ");
         String deadlineStr = scanner.nextLine();
 
         try {
-            Job job = new Job();
-            job.setTitle(title);
-            job.setCompany(company);
-            job.setDescription(description);
-            job.setMinSalary(minSalary);
-            job.setMaxSalary(maxSalary);
-            job.setLocation(location);
-            job.setEmploymentType(employmentType);
-            job.setRequiredSkills(requiredSkills);
-            job.setPostDate(LocalDate.now());
+            Job payload = new Job();
+            payload.setTitle(title);
+            payload.setCompany(company);
+            payload.setDescription(description);
+            payload.setMinSalary(minSalary);
+            payload.setMaxSalary(maxSalary);
+            payload.setLocation(location);
+            payload.setEmploymentType(employmentType);
+            payload.setRequiredSkills(requiredSkills);
+            payload.setPostDate(LocalDate.now());
+            payload.setRecruiterId(currentUser.getId());
+            payload.setDeadlineDate(
+                    !deadlineStr.isEmpty()
+                            ? LocalDate.parse(deadlineStr)
+                            : LocalDate.now().plusMonths(1)
+            );
+            payload.setActive(true);
 
-            if (!deadlineStr.isEmpty()) {
-                job.setDeadlineDate(LocalDate.parse(deadlineStr));
-            } else {
-                job.setDeadlineDate(LocalDate.now().plusMonths(1));
-            }
+            String uri = UriComponentsBuilder
+                    .fromHttpUrl(baseUrl + "/jobs")
+                    .toUriString();
 
-            job.setActive(true);
-
-            Job createdJob = jobService.createJob(job);
-            System.out.println("Job created successfully with ID: " + createdJob.getId());
-        } catch (Exception e) {
-            System.out.println("Error creating job: " + e.getMessage());
+            Job created = restTemplate.postForObject(uri, payload, Job.class);
+            System.out.println("Job posted successfully with ID: " + created.getId());
+        } catch (RestClientException ex) {
+            System.out.println("Error posting job: " + ex.getMessage());
         }
     }
 
+    /**
+     * Prompts for a job ID, fetches it, allows edits, then PUTs back over HTTP.
+     */
     private void updateJob() {
         System.out.print("Enter Job ID to update: ");
         String id = scanner.nextLine();
-
         try {
-            Job job = jobService.getJobById(id);
+            String getUri = baseUrl + "/jobs/" + id;
+            Job job = restTemplate.getForObject(getUri, Job.class);
+            if (job == null) {
+                System.out.println("Job not found.");
+                return;
+            }
 
             System.out.println("\nCurrent Job Details:");
             System.out.println("Title: " + job.getTitle());
@@ -869,25 +1031,30 @@ public class ConsoleMenuRunner implements CommandLineRunner {
             String activeStr = scanner.nextLine();
             if (!activeStr.isEmpty()) job.setActive(Boolean.parseBoolean(activeStr));
 
-            Job updatedJob = jobService.updateJob(id, job);
+            restTemplate.put(baseUrl + "/jobs/" + id, job);
             System.out.println("Job updated successfully!");
-        } catch (Exception e) {
-            System.out.println("Error updating job: " + e.getMessage());
+        } catch (RestClientException ex) {
+            System.out.println("Error updating job: " + ex.getMessage());
         }
     }
 
+    /**
+     * Deletes a job by ID via HTTP DELETE.
+     */
     private void deleteJob() {
         System.out.print("Enter Job ID to delete: ");
         String id = scanner.nextLine();
-
         try {
-            jobService.deleteJob(id);
+            restTemplate.delete(baseUrl + "/jobs/" + id);
             System.out.println("Job deleted successfully!");
-        } catch (Exception e) {
-            System.out.println("Error deleting job: " + e.getMessage());
+        } catch (RestClientException ex) {
+            System.out.println("Error deleting job: " + ex.getMessage());
         }
     }
 
+    /**
+     * Offers the admin sub‐menu to view, add, update, or delete recruiter profiles.
+     */
     private void manageRecruiters() {
         boolean managing = true;
         while (managing) {
@@ -900,7 +1067,6 @@ public class ConsoleMenuRunner implements CommandLineRunner {
             System.out.print("Enter your choice: ");
 
             String choice = scanner.nextLine();
-
             switch (choice) {
                 case "1":
                     displayAllRecruiters();
@@ -923,20 +1089,36 @@ public class ConsoleMenuRunner implements CommandLineRunner {
         }
     }
 
+    /**
+     * Prints every recruiter record by HTTP GET /recruiters.
+     */
     private void displayAllRecruiters() {
-        List<Recruiter> recruiters = recruiterService.getAllRecruiters();
-        if (recruiters.isEmpty()) {
-            System.out.println("No recruiters found.");
-            return;
-        }
-
-        System.out.println("\n===== All Recruiters =====");
-        for (Recruiter recruiter : recruiters) {
-            System.out.printf("ID: %s\nName: %s\nCompany: %s\nEmail: %s\n\n",
-                    recruiter.getId(), recruiter.getName(), recruiter.getCompany(), recruiter.getEmail());
+        try {
+            ResponseEntity<List<Recruiter>> resp = restTemplate.exchange(
+                    baseUrl + "/recruiters",
+                    HttpMethod.GET,
+                    null,
+                    new ParameterizedTypeReference<List<Recruiter>>() {
+                    }
+            );
+            List<Recruiter> recruiters = resp.getBody();
+            if (recruiters == null || recruiters.isEmpty()) {
+                System.out.println("No recruiters found.");
+                return;
+            }
+            System.out.println("\n===== All Recruiters =====");
+            for (Recruiter r : recruiters) {
+                System.out.printf("ID: %s\nName: %s\nCompany: %s\nEmail: %s\n\n",
+                        r.getId(), r.getName(), r.getCompany(), r.getEmail());
+            }
+        } catch (RestClientException ex) {
+            System.out.println("Error fetching recruiters: " + ex.getMessage());
         }
     }
 
+    /**
+     * Offers the admin sub‐menu to view all users and toggle their enabled/disabled status.
+     */
     private void manageUsers() {
         boolean managing = true;
         while (managing) {
@@ -947,7 +1129,6 @@ public class ConsoleMenuRunner implements CommandLineRunner {
             System.out.print("Enter your choice: ");
 
             String choice = scanner.nextLine();
-
             switch (choice) {
                 case "1":
                     displayAllUsers();
@@ -964,59 +1145,120 @@ public class ConsoleMenuRunner implements CommandLineRunner {
         }
     }
 
+    /**
+     * Prints every registered user via HTTP GET /api/admin/users,
+     * binding to CurrentUserDto rather than the raw User entity.
+     */
     private void displayAllUsers() {
-        List<User> users = userService.getAllUsers();
-        if (users.isEmpty()) {
-            System.out.println("No users found.");
+        try {
+            // 1) Fetch a list of CurrentUserDto from the admin endpoint
+            ResponseEntity<List<CurrentUserDto>> resp = restTemplate.exchange(
+                    baseUrl + "/admin/users",
+                    HttpMethod.GET,
+                    null,
+                    new ParameterizedTypeReference<List<CurrentUserDto>>() {}
+            );
+
+            List<CurrentUserDto> users = resp.getBody();
+            if (users == null || users.isEmpty()) {
+                System.out.println("No users found.");
+                return;
+            }
+
+            // 2) Print a header
+            System.out.println("\n===== All Users =====");
+            System.out.printf("%-24s %-15s %-25s %-20s%n", "ID", "Username", "Email", "Roles");
+            System.out.println("--------------------------------------------------------------------------------");
+
+            // 3) Loop over the DTOs and print their fields
+            for (CurrentUserDto u : users) {
+                String roles = String.join(",", u.getRoles());
+                System.out.printf(
+                        "%-24s %-15s %-25s %-20s%n",
+                        u.getId(),
+                        u.getUsername(),
+                        u.getEmail(),
+                        roles
+                );
+            }
+        } catch (RestClientException ex) {
+            System.out.println("Error fetching users: " + ex.getMessage());
+        }
+    }
+
+    /**
+     * Enables or disables a user via HTTP PUT /api/admin/users/{id}/status?enabled={true|false}.
+     */
+    private void toggleUserStatus() {
+        System.out.print("Enter User ID: ");
+        String id = scanner.nextLine().trim();
+        if (id.isEmpty()) {
+            System.out.println("No User ID provided.");
             return;
         }
 
-        System.out.println("\n===== All Users =====");
-        for (User user : users) {
-            System.out.printf("ID: %s\nUsername: %s\nEmail: %s\nRoles: %s\nEnabled: %s\n\n",
-                    user.getId(), user.getUsername(), user.getEmail(), user.getRoles(),
-                    user.isEnabled() ? "Yes" : "No");
+        // Ask admin which action
+        System.out.print("Do you want to (e)nable or (d)isable this user? ");
+        String choice = scanner.nextLine().trim().toLowerCase();
+        boolean enabled;
+        if ("e".equals(choice)) {
+            enabled = true;
+        } else if ("d".equals(choice)) {
+            enabled = false;
+        } else {
+            System.out.println("Invalid choice; please enter 'e' or 'd'.");
+            return;
         }
-    }
-
-    private void toggleUserStatus() {
-        System.out.print("Enter User ID: ");
-        String id = scanner.nextLine();
 
         try {
-            // Using the getUserById method from your UserService
-            User user = userService.getUserById(id);
-            boolean currentStatus = user.isEnabled();
-
-            System.out.printf("User %s is currently %s. Toggle to %s? (y/n): ",
-                    user.getUsername(), currentStatus ? "enabled" : "disabled",
-                    !currentStatus ? "enabled" : "disabled");
-
-            String confirm = scanner.nextLine();
-            if (confirm.equalsIgnoreCase("y")) {
-                userService.updateUserStatus(id, !currentStatus);
-                System.out.println("User status updated successfully!");
-            }
-        } catch (Exception e) {
-            System.out.println("Error: " + e.getMessage());
+            // Use PUT instead of PATCH (RestTemplate out-of-the-box supports PUT)
+            restTemplate.put(
+                    baseUrl + "/admin/users/" + id + "/status?enabled=" + enabled,
+                    null
+            );
+            System.out.printf("User %s has been %s.%n",
+                    id,
+                    enabled ? "enabled" : "disabled"
+            );
+        } catch (HttpClientErrorException ex) {
+            System.out.println("Error updating user status: " + ex.getResponseBodyAsString());
+        } catch (RestClientException ex) {
+            System.out.println("Error: " + ex.getMessage());
         }
     }
 
+    /**
+     * Retrieves and prints high‐level system statistics via HTTP GET /api/admin/stats.
+     */
     private void viewStatistics() {
-        Map<String, Object> stats = userService.getDashboardStats();
-
-        System.out.println("\n===== System Statistics =====");
-        System.out.println("Total Users: " + stats.get("totalUsers"));
-        System.out.println("Total Jobs: " + stats.get("totalJobs"));
-        System.out.println("Total Applications: " + stats.get("totalApplications"));
-        System.out.println("Total Recruiters: " + stats.get("totalRecruiters"));
+        try {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> stats = restTemplate.getForObject(
+                    baseUrl + "/admin/stats",
+                    Map.class
+            );
+            System.out.println("\n===== System Statistics =====");
+            System.out.println("Total Users:        " + stats.get("totalUsers"));
+            System.out.println("Total Jobs:         " + stats.get("totalJobs"));
+            System.out.println("Total Applications: " + stats.get("totalApplications"));
+            System.out.println("Total Recruiters:   " + stats.get("totalRecruiters"));
+        } catch (RestClientException ex) {
+            System.out.println("Error fetching statistics: " + ex.getMessage());
+        }
     }
 
+    /**
+     * Gracefully shuts down the Spring application context and terminates the JVM.
+     */
     private void exit() {
         int exitCode = SpringApplication.exit(applicationContext, () -> 0);
         System.exit(exitCode);
     }
 
+    /**
+     * Prompts the admin for recruiter details, registers a user via POST /users,
+     * then creates their profile via POST /recruiters.
+     */
     private void addNewRecruiter() {
         System.out.println("\n===== Add New Recruiter =====");
         System.out.print("Username: ");
@@ -1032,79 +1274,103 @@ public class ConsoleMenuRunner implements CommandLineRunner {
         System.out.print("Phone: ");
         String phone = scanner.nextLine();
 
+        // Build the signup payload – match your SignupRequest DTO
+        Map<String, Object> signup = new HashMap<>();
+        signup.put("username", username);
+        signup.put("email",    email);
+        signup.put("password", password);
+        signup.put("role",     "RECRUITER");
+        signup.put("company",  company);
+        signup.put("position", position);
+        signup.put("phone",    phone);
+
         try {
-            // Register user with RECRUITER role
-            User user = userService.registerUser(username, email, password, "RECRUITER");
+            // This hits POST /api/auth/register
+            ResponseEntity<MessageResponse> resp = restTemplate.postForEntity(
+                    baseUrl + "/auth/register",
+                    new HttpEntity<>(signup),
+                    MessageResponse.class
+            );
 
-            // Create recruiter profile
-            Recruiter recruiter = new Recruiter();
-            recruiter.setName(username);
-            recruiter.setEmail(email);
-            recruiter.setCompany(company);
-            recruiter.setPosition(position);
-            recruiter.setPhone(phone);
-
-            // Note: There's no direct link to the User entity in your model
-
-            recruiterService.createRecruiter(recruiter);
-            System.out.println("Recruiter added successfully!");
-        } catch (Exception e) {
-            System.out.println("Error adding recruiter: " + e.getMessage());
+            if (resp.getStatusCode() == HttpStatus.OK) {
+                System.out.println("Recruiter registered successfully!");
+            } else {
+                System.out.println("Registration returned: " + resp.getStatusCode());
+            }
+        } catch (HttpClientErrorException ex) {
+            System.out.println("Error adding recruiter: " + ex.getResponseBodyAsString());
         }
     }
 
+
+    /**
+     * Prompts for a recruiter ID, fetches via GET, updates fields, then PUT /recruiters/{id}.
+     */
     private void updateRecruiter() {
         System.out.print("Enter Recruiter ID: ");
         String id = scanner.nextLine();
-
         try {
-            Recruiter recruiter = recruiterService.getRecruiterById(id);
+            String uri = baseUrl + "/recruiters/" + id;
+            Recruiter r = restTemplate.getForObject(uri, Recruiter.class);
+            if (r == null) {
+                System.out.println("Recruiter not found.");
+                return;
+            }
 
             System.out.println("\nCurrent Recruiter Details:");
-            System.out.println("Name: " + recruiter.getName());
-            System.out.println("Email: " + recruiter.getEmail());
-            System.out.println("Company: " + recruiter.getCompany());
-            System.out.println("Position: " + recruiter.getPosition());
-            System.out.println("Phone: " + recruiter.getPhone());
+            System.out.println("Name: " + r.getName());
+            System.out.println("Email: " + r.getEmail());
+            System.out.println("Company: " + r.getCompany());
+            System.out.println("Position: " + r.getPosition());
+            System.out.println("Phone: " + r.getPhone());
 
-            System.out.println("\nEnter new details (leave blank to keep current value):");
-
+            System.out.println("\nEnter new details (leave blank to keep current):");
             System.out.print("Name: ");
             String name = scanner.nextLine();
-            if (!name.isEmpty()) recruiter.setName(name);
-
+            if (!name.isEmpty()) r.setName(name);
             System.out.print("Email: ");
             String email = scanner.nextLine();
-            if (!email.isEmpty()) recruiter.setEmail(email);
-
+            if (!email.isEmpty()) r.setEmail(email);
             System.out.print("Company: ");
             String company = scanner.nextLine();
-            if (!company.isEmpty()) recruiter.setCompany(company);
-
+            if (!company.isEmpty()) r.setCompany(company);
             System.out.print("Position: ");
-            String position = scanner.nextLine();
-            if (!position.isEmpty()) recruiter.setPosition(position);
-
+            String pos = scanner.nextLine();
+            if (!pos.isEmpty()) r.setPosition(pos);
             System.out.print("Phone: ");
             String phone = scanner.nextLine();
-            if (!phone.isEmpty()) recruiter.setPhone(phone);
+            if (!phone.isEmpty()) r.setPhone(phone);
 
-            recruiterService.updateRecruiter(id, recruiter);
+            restTemplate.put(uri, r);
             System.out.println("Recruiter updated successfully!");
-        } catch (Exception e) {
-            System.out.println("Error updating recruiter: " + e.getMessage());
+        } catch (RestClientException ex) {
+            System.out.println("Error updating recruiter: " + ex.getMessage());
         }
     }
 
+    /**
+     * Deletes a recruiter via HTTP DELETE /recruiters/{id}.
+     */
     private void deleteRecruiter() {
         System.out.print("Enter Recruiter ID: ");
         String id = scanner.nextLine();
-
         try {
-            recruiterService.deleteRecruiter(id);
+            restTemplate.delete(baseUrl + "/recruiters/" + id);
             System.out.println("Recruiter deleted successfully!");
-        } catch (Exception e) {
-            System.out.println("Error deleting recruiter: " + e.getMessage());
+        } catch (RestClientException ex) {
+            System.out.println("Error deleting recruiter: " + ex.getMessage());
         }
     }
+
+    /**
+     * A simple helper DTO to deserialize Spring Data {@code Page<T>} responses.
+     *
+     * @param <T> the type of each element in the page
+     */
+    private static class PageResponse<T> {
+        private List<T> content;
+        public List<T> getContent() { return content; }
+        public void setContent(List<T> content) { this.content = content; }
+    }
+
 }

@@ -1,19 +1,26 @@
-// Create this class if you didn't already
 package org.example.oopproject1.util;
 
 import org.example.oopproject1.model.Job;
 import org.example.oopproject1.model.Recruiter;
 import org.example.oopproject1.repository.JobRepository;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.example.oopproject1.repository.RecruiterRepository;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;
 import java.util.Arrays;
-import java.util.List;
 
+/**
+ * Loads sample data into the database on application startup when enabled.
+ * <p>
+ * Creates a default recruiter and 20 sample jobs if no jobs exist.
+ * Controlled by the 'app.load-sample-data' property.
+ * </p>
+ *
+ * @since 1.0
+ */
 @Component
 @ConditionalOnProperty(name = "app.load-sample-data", havingValue = "true", matchIfMissing = false)
 public class DataLoader implements CommandLineRunner {
@@ -24,14 +31,22 @@ public class DataLoader implements CommandLineRunner {
     @Autowired
     private RecruiterRepository recruiterRepository;
 
+    /**
+     * Runs on application startup to load initial sample data.
+     * <p>
+     * Checks if jobs already exist; if not, creates a sample recruiter
+     * and populates 20 sample job postings with varying attributes.
+     * </p>
+     *
+     * @param args command-line arguments (ignored)
+     * @throws Exception if an error occurs during data loading
+     */
     @Override
-    public void run(String... args) {
-        // Check if data already exists
+    public void run(String... args) throws Exception {
         if (jobRepository.count() > 0) {
             return;
         }
 
-        // Create a recruiter
         Recruiter recruiter = new Recruiter();
         recruiter.setName("John Smith");
         recruiter.setEmail("john@example.com");
@@ -40,7 +55,6 @@ public class DataLoader implements CommandLineRunner {
         recruiter.setPhone("123-456-7890");
         recruiter = recruiterRepository.save(recruiter);
 
-        // Create 20 sample jobs
         for (int i = 1; i <= 20; i++) {
             Job job = new Job();
             job.setTitle("Software Engineer " + i);

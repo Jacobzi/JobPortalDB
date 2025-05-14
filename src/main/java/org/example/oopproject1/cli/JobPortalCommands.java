@@ -13,18 +13,44 @@ import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.List;
 
+/**
+ * CLI commands for the Job Portal system using Spring Shell.
+ * Provides job and recruiter management operations such as listing, filtering,
+ * viewing details, creating, toggling status, and deleting jobs, as well as listing recruiters.
+ * Interacts with JobService and RecruiterService to execute business logic.
+ *
+ * @since 1.0
+ */
 @ShellComponent
 public class JobPortalCommands {
 
-    private final JobService jobService;
+    /**
+     * Service for job-related operations.
+     */
+    private final  JobService jobService;
+
+    /**
+     * Service for recruiter-related operations.
+     */
     private final RecruiterService recruiterService;
 
+    /**
+     * Constructs JobPortalCommands with required services.
+     *
+     * @param jobService       the service handling job operations
+     * @param recruiterService the service handling recruiter operations
+     */
     @Autowired
     public JobPortalCommands(JobService jobService, RecruiterService recruiterService) {
         this.jobService = jobService;
         this.recruiterService = recruiterService;
     }
 
+    /**
+     * Lists all available jobs in the system.
+     *
+     * @return formatted string of all jobs or a message if none are found
+     */
     @ShellMethod(value = "List all jobs", key = "list-jobs")
     public String listJobs() {
         List<Job> jobs = jobService.getAllJobs();
@@ -40,6 +66,12 @@ public class JobPortalCommands {
         return result.toString();
     }
 
+    /**
+     * Retrieves details of a specific job by ID.
+     *
+     * @param id the ID of the job to retrieve
+     * @return formatted job details or error message if not found
+     */
     @ShellMethod(value = "Get job details", key = "job-details")
     public String getJobDetails(@ShellOption(value = {"-i", "--id"}) String id) {
         try {
@@ -63,6 +95,11 @@ public class JobPortalCommands {
         }
     }
 
+    /**
+     * Lists all recruiters in the system.
+     *
+     * @return formatted string of all recruiters or a message if none are found
+     */
     @ShellMethod(value = "List all recruiters", key = "list-recruiters")
     public String listRecruiters() {
         List<Recruiter> recruiters = recruiterService.getAllRecruiters();
@@ -78,6 +115,19 @@ public class JobPortalCommands {
         return result.toString();
     }
 
+    /**
+     * Creates a sample job with provided details.
+     *
+     * @param title         job title
+     * @param company       company name
+     * @param description   job description
+     * @param minSalary     minimum salary
+     * @param maxSalary     maximum salary
+     * @param location      job location
+     * @param employmentType employment type
+     * @param recruiterId   recruiter ID for the job
+     * @return success message including new job ID or error message
+     */
     @ShellMethod(value = "Create sample job", key = "create-sample-job")
     public String createSampleJob(
             @ShellOption(value = {"-t", "--title"}, defaultValue = "Software Engineer") String title,
@@ -113,6 +163,13 @@ public class JobPortalCommands {
         }
     }
 
+    /**
+     * Toggles a job's active status.
+     *
+     * @param id     job ID to update
+     * @param active new active status (true=active, false=inactive)
+     * @return confirmation message or error
+     */
     @ShellMethod(value = "Update job status", key = "toggle-job-status")
     public String toggleJobStatus(
             @ShellOption(value = {"-i", "--id"}) String id,
@@ -128,6 +185,12 @@ public class JobPortalCommands {
         }
     }
 
+    /**
+     * Searches jobs by keyword across multiple fields.
+     *
+     * @param keyword term to search in job title, company, description, etc.
+     * @return list of matching jobs or message if none
+     */
     @ShellMethod(value = "Search jobs by keyword", key = "search-jobs")
     public String searchJobs(@ShellOption(value = {"-k", "--keyword"}) String keyword) {
         try {
@@ -147,6 +210,12 @@ public class JobPortalCommands {
         }
     }
 
+    /**
+     * Filters active jobs by location.
+     *
+     * @param location location to filter jobs
+     * @return list of active jobs in the location or message if none
+     */
     @ShellMethod(value = "Filter jobs by location", key = "filter-by-location")
     public String filterByLocation(@ShellOption(value = {"-l", "--location"}) String location) {
         try {
@@ -166,6 +235,12 @@ public class JobPortalCommands {
         }
     }
 
+    /**
+     * Filters jobs by company name.
+     *
+     * @param company company to filter jobs
+     * @return list of jobs at the company or message if none
+     */
     @ShellMethod(value = "Filter jobs by company", key = "filter-by-company")
     public String filterByCompany(@ShellOption(value = {"-c", "--company"}) String company) {
         try {
@@ -185,6 +260,12 @@ public class JobPortalCommands {
         }
     }
 
+    /**
+     * Filters jobs by title keyword.
+     *
+     * @param title title keyword to filter jobs
+     * @return list of jobs with matching titles or message if none
+     */
     @ShellMethod(value = "Filter jobs by title", key = "filter-by-title")
     public String filterByTitle(@ShellOption(value = {"-t", "--title"}) String title) {
         try {
@@ -204,6 +285,12 @@ public class JobPortalCommands {
         }
     }
 
+    /**
+     * Filters jobs by recruiter ID.
+     *
+     * @param recruiterId the recruiter ID to filter jobs
+     * @return list of jobs posted by the recruiter or message if none
+     */
     @ShellMethod(value = "Filter jobs by recruiter", key = "filter-by-recruiter")
     public String filterByRecruiter(@ShellOption(value = {"-r", "--recruiter-id"}) String recruiterId) {
         try {
@@ -223,6 +310,12 @@ public class JobPortalCommands {
         }
     }
 
+    /**
+     * Deletes a job by its ID.
+     *
+     * @param id the ID of the job to delete
+     * @return confirmation message or error message
+     */
     @ShellMethod(value = "Delete a job", key = "delete-job")
     public String deleteJob(@ShellOption(value = {"-i", "--id"}) String id) {
         try {
@@ -233,6 +326,11 @@ public class JobPortalCommands {
         }
     }
 
+    /**
+     * Displays help information for available commands.
+     *
+     * @return formatted help text
+     */
     @ShellMethod(value = "Show help information", key = "job-portal-help")
     public String help() {
         StringBuilder help = new StringBuilder("Job Portal CLI Commands:\n\n");

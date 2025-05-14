@@ -9,6 +9,14 @@ import org.springframework.stereotype.Component;
 
 import java.util.Arrays;
 
+/**
+ * Initializes default user data on application startup.
+ * <p>
+ * Creates an admin user with username "admin" if one does not already exist.
+ * </p>
+ *
+ * @since 1.0
+ */
 @Component
 public class UserDataInitializer implements CommandLineRunner {
 
@@ -18,6 +26,16 @@ public class UserDataInitializer implements CommandLineRunner {
     @Autowired
     private PasswordEncoder passwordEncoder;
 
+    /**
+     * Executes on application startup to seed the admin account.
+     * <p>
+     * Checks if a user with username "admin" exists; if not,
+     * creates a new User with ADMIN role and encoded password.
+     * </p>
+     *
+     * @param args command-line arguments (ignored)
+     * @throws Exception if an error occurs during initialization
+     */
     @Override
     public void run(String... args) throws Exception {
         if (!userRepository.existsByUsername("admin")) {
