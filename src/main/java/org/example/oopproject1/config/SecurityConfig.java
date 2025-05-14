@@ -90,6 +90,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // static resources
                         .requestMatchers("/", "/index.html", "/css/**", "/js/**", "/*.html").permitAll()
+                        .requestMatchers("/apidocs/**").permitAll()
                         // authentication endpoints
                         .requestMatchers("/api/auth/**").permitAll()
                         // allow clients to fetch their own profile
