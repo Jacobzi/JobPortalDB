@@ -13,12 +13,6 @@ java {
     }
 }
 
-configurations {
-    compileOnly {
-        extendsFrom annotationProcessor
-    }
-}
-
 repositories {
     mavenCentral()
 }
@@ -43,19 +37,35 @@ dependencies {
     testRuntimeOnly    'org.junit.platform:junit-platform-launcher'
 }
 
-tasks.named('test') {
-    useJUnitPlatform()
-}
-
-tasks.javadoc {
-    options {
-        // include private members
-        addBooleanOption('private', true)
-        // link to external Javadoc
-        links 'https://docs.oracle.com/en/java/javase/17/docs/api/'
-    }
-}
-
+// disable tests by default (remove if you actually want to run them)
 tasks.named('test') {
     enabled = false
+}
+
+
+// 1) Configure your Javadoc generation
+tasks.named('javadoc', Javadoc) {
+    options {
+        addBooleanOption('private', true)                    // include privates
+        links 'https://docs.oracle.com/en/java/javase/17/docs/api/'
+    }
+    // when javadoc finishes, trigger our copy task
+    finalizedBy 'copyJavadocToStatic'
+}
+
+// 2) Copy task to move the generated docs into your static resources
+tasks.register('copyJavadocToStatic', Copy) {
+    // this task itself will wait for Javadoc to finish
+    dependsOn 'javadoc'
+
+    // Gradle’s default output dir for javadoc is build/docs/javadoc
+    from layout.buildDirectory.dir('docs/javadoc')
+
+    // drop them into src/main/resources/static/apidocs
+    into layout.projectDirectory.dir('src/main/resources/static/apidocs')
+}
+
+// 3) Make sure your Boot JAR includes the docs every time you build/run
+tasks.named('bootJar') {
+    dependsOn 'copyJavadocToStatic'
 }
