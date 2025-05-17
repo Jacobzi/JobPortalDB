@@ -1,3 +1,4 @@
+// src/main/java/org/example/oopproject1/controller/AdminController.java
 package org.example.oopproject1.controller;
 
 import org.example.oopproject1.dto.CurrentUserDto;
@@ -30,7 +31,7 @@ public class AdminController {
      */
     @GetMapping("/users")
     public ResponseEntity<List<CurrentUserDto>> getAllUsers() {
-        List<CurrentUserDto> dtos = userService.findAll().stream()
+        List<CurrentUserDto> dtos = userService.getAllUsers().stream()
                 .map(u -> new CurrentUserDto(
                         u.getId(),
                         u.getUsername(),
@@ -58,7 +59,7 @@ public class AdminController {
     }
 
     /**
-     * PATCH /api/admin/users/{id}/status?enabled={true|false}
+     * PUT /api/admin/users/{id}/status?enabled={true|false}
      * Enables or disables the given user.
      * Returns 204 No Content on success.
      */
